@@ -145,16 +145,12 @@ defmodule Ueberauth.Strategy.Orcid do
   defp maybe_fetch_email(user, allow_private_emails) do
     user["email"] ||
       maybe_get_primary_email(user) ||
-      maybe_get_private_email(user, allow_private_emails)
   end
 
   defp maybe_get_primary_email(user) do
     if user["emails"] && Enum.count(user["emails"]) > 0 do
       Enum.find(user["emails"], & &1["primary"])["email"]
     end
-  end
-
-  defp maybe_get_private_email(user, allow_private_emails) do
   end
 
   defp fetch_user(conn, token) do
