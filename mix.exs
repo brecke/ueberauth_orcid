@@ -2,7 +2,7 @@ defmodule UeberauthOrcid.MixProject do
   use Mix.Project
 
   @source_url "https://github.com/brecke/ueberauth_orcid"
-  @version "0.2.2"
+  @version "0.2.5"
 
   def project do
     [

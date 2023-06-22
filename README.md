@@ -14,7 +14,8 @@ by adding `ueberauth_orcid` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:ueberauth_orcid, git: "https://github.com/brecke/ueberauth_orcid", tag: "0.2.2"}
+    {:ueberauth_orcid, "~>0.2.5"},
+    # or {:ueberauth_orcid, git: "https://github.com/brecke/ueberauth_orcid", tag: "0.2.5"}
   ]
 end
 ```
