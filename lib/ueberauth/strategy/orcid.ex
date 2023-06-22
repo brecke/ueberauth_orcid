@@ -142,9 +142,9 @@ defmodule Ueberauth.Strategy.Orcid do
       raise "Unable to access the user's email address"
   end
 
-  defp maybe_fetch_email(user, allow_private_emails) do
+  defp maybe_fetch_email(user, _allow_private_emails) do
     user["email"] ||
-      maybe_get_primary_email(user) ||
+      maybe_get_primary_email(user)
   end
 
   defp maybe_get_primary_email(user) do
