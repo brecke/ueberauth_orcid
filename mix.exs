@@ -19,7 +19,6 @@ defmodule UeberauthOrcid.MixProject do
   defp docs do
     [
       extras: [
-        "CHANGELOG.md": [title: "Changelog"],
         "CONTRIBUTING.md": [title: "Contributing"],
         LICENSE: [title: "License"],
         "README.md": [title: "Overview"]
