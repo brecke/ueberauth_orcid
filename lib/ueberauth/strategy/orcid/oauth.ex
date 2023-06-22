@@ -15,9 +15,9 @@ defmodule Ueberauth.Strategy.Orcid.OAuth do
   @defaults [
     strategy: __MODULE__,
     site: "https://orcid.org",
-    authorize_utl: "https://orcid.org/oauth/authorize"
+    authorize_utl: "https://orcid.org/oauth/authorize",
     # token_url: "https://github.com/login/oauth/access_token",
-    redirect_uri: "http://localhost:4000/auth/orcid/callback"
+    redirect_uri: "http://localhost:4000/auth/orcid/callback",
     headers: [{"user-agent", "ueberauth-orcid"}]
   ]
 
