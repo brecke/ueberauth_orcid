@@ -4,17 +4,24 @@ on:
   push:
     branches: [master]
   pull_request:
+  schedule:
+    - cron: '23 7 * * 2'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+env:
+  HEX_VERSION: '2.5.1'
+
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   test:
     name: Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }}
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
@@ -36,7 +43,33 @@ jobs:
           elixir-version: ${{ matrix.elixir }}
           otp-version: ${{ matrix.otp }}
           version-type: strict
+          install-hex: false
+      - name: Install and log Hex
+        run: |
+          mix local.hex "$HEX_VERSION" --force
+          mix hex.info
       - run: mix deps.get --check-locked
       - run: mix compile
       - run: mix format --check-formatted
       - run: mix test
+
+  audit:
+    name: Hex security and retirement audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
+        with:
+          elixir-version: '1.18.4-otp-27'
+          otp-version: '27.3.4'
+          version-type: strict
+          install-hex: false
+      - name: Install and log Hex
+        run: |
+          mix local.hex "$HEX_VERSION" --force
+          mix hex.info
+      - run: mix deps.get --check-locked
+      - run: mix hex.audit

@@ -101,19 +101,125 @@ The GitHub Actions definition passes actionlint 1.7.12. It uses two explicit sup
 
 **Priority: high; do not wait for cosmetic cleanup.**
 
-- [ ] Triage all current `mix hex.audit` findings against actual adapter/middleware use. Record package, affected range, fixed release, reachability, and disposition. Consult advisories again at implementation time; this list is a snapshot.
-- [ ] Upgrade OAuth2, Ueberauth, and their dependency resolutions in reviewable groups. Check release notes and reproduce the successful login contract after each group; do not run an indiscriminate update and assume compilation proves compatibility.
-- [ ] Review both the library lockfile and Benchpro's lockfile. A library's lockfile is not the dependency resolution installed by its Hex consumers.
-- [ ] Raise dependency lower bounds only where required for correctness/security, and explain why. Update the application resolution too; publishing this library alone does not upgrade Benchpro.
-- [ ] Make the JSON contract explicit: either declare the supported default as a runtime dependency, or require and document the consumer-provided serializer as Ueberauth does. Preserve configured alternative serializers where supported. Test the chosen contract in a production-only consumer.
-- [ ] Audit the actual production HTTP adapter: TLS peer/hostname verification, timeout behavior, redirect policy, and credential handling. Do not assume every Tesla adapter/middleware has the same behavior.
-- [ ] Pin/log a maintained Hex version and add `mix hex.audit` to maintenance/CI. Current Hex checks both security advisories and retired releases; older versions only checked retirement. Use `mix hex.outdated --all` for review, not a rule requiring every dependency to be newest.
-- [ ] Add one dependency-update mechanism, preferably Dependabot for Mix and GitHub Actions. Use a low-noise schedule and reviewed updates; do not auto-merge authentication dependencies without passing tests. GitHub currently supports Mix version updates but not Mix security-update PRs, so the bot does not replace scheduled Hex auditing.
-- [ ] Add private vulnerability-reporting instructions and enable available GitHub dependency/security alerts. Keep secrets, real tokens, and private ORCID records out of issue templates and fixtures.
+- [x] Triage all current `mix hex.audit` findings against actual adapter/middleware use. Record package, affected range, fixed release, reachability, and disposition. Consult advisories again at implementation time; this list is a snapshot.
+- [x] Upgrade OAuth2, Ueberauth, and their dependency resolutions in reviewable groups. Check release notes and reproduce the successful login contract after each group; do not run an indiscriminate update and assume compilation proves compatibility.
+- [x] Review both the library lockfile and Benchpro's lockfile. A library's lockfile is not the dependency resolution installed by its Hex consumers.
+- [x] Raise dependency lower bounds only where required for correctness/security, and explain why. Review the application resolution too; change it where remediation is needed. Publishing this library alone does not upgrade Benchpro.
+- [x] Make the JSON contract explicit: either declare the supported default as a runtime dependency, or require and document the consumer-provided serializer as Ueberauth does. Preserve configured alternative serializers where supported. Test the chosen contract in a production-only consumer.
+- [x] Audit the actual production HTTP adapter: TLS peer/hostname verification, timeout behavior, redirect policy, and credential handling. Do not assume every Tesla adapter/middleware has the same behavior.
+- [x] Pin/log a maintained Hex version and add `mix hex.audit` to maintenance/CI. Current Hex checks both security advisories and retired releases; older versions only checked retirement. Use `mix hex.outdated --all` for review, not a rule requiring every dependency to be newest.
+- [x] Add one dependency-update mechanism, preferably Dependabot for Mix and GitHub Actions. Use a low-noise schedule and reviewed updates; do not auto-merge authentication dependencies without passing tests. GitHub currently supports Mix version updates but not Mix security-update PRs, so the bot does not replace scheduled Hex auditing.
+- [x] Add private vulnerability-reporting instructions and enable available GitHub dependency/security alerts. Keep secrets, real tokens, and private ORCID records out of issue templates and fixtures.
 
 Current examples include [Plug multipart parsing DoS](https://osv.dev/vulnerability/EEF-CVE-2026-8468) and [Tesla cross-origin redirect authorization leakage](https://osv.dev/vulnerability/EEF-CVE-2026-48595). Their presence in a lockfile is a triage signal, not a finding that either behavior is exercised by this package.
 
 **Acceptance:** no untriaged advisory remains; any accepted risk has a reason and review date. The supported production consumer decodes JSON successfully without pulling in Credo or ExDoc. Benchpro's own resolved dependencies are reviewed before rollout.
+
+### Phase 2 implementation status (2026-09-18, unreleased)
+
+Two targeted runtime update groups each passed the three existing authentication
+tests. The repository now locks OAuth2 2.1.1, Ueberauth 0.10.8, Plug 1.19.5,
+Tesla 1.21.3, Jason 1.4.5, PlugCrypto 2.2.0, MIME 2.0.7, and telemetry 1.4.2.
+Development-tool bounds remain unchanged from Phase 1.
+
+[OAuth2 2.1.1](https://github.com/ueberauth/oauth2/releases/tag/v2.1.1) updates
+Tesla for security fixes, but its `~> 1.18` requirement still admits vulnerable
+1.18.0–1.18.2. This library therefore explicitly requires Tesla >= 1.18.3 and
+< 2.0.0. Plug has separate fixed maintenance branches: the published constraint
+permits 1.16.6+, 1.17.4+, 1.18.5+, and 1.19.5+ within their respective minors,
+or >= 1.20.3 and < 2.0.0. A single `>= 1.16.6` would incorrectly admit vulnerable
+releases in newer branches. No dependency override is needed.
+
+The lock selects [Plug 1.19.5](https://hex.pm/api/packages/plug/releases/1.19.5)
+because it supports Elixir 1.14; [1.20.3](https://hex.pm/api/packages/plug/releases/1.20.3)
+requires 1.15. Unlocked Elixir 1.14 consumers must select a compatible Plug
+branch explicitly, as documented in the README.
+[Ueberauth 0.10.8](https://github.com/ueberauth/ueberauth/releases/tag/v0.10.8)
+fixes callback URL port handling; the floor also excludes retired 0.10.6 and its
+reverted routing change. OAuth2 remains open to compatible 2.x releases.
+
+#### Advisory disposition
+
+Intervals below include their lower bound and exclude their upper bound.
+All eight original findings are **fixed in the new library resolution**; none is
+waived or left untriaged. Reachability is assessed against the default OAuth2
+middleware list (`[]`) and `Tesla.Adapter.Httpc`, not arbitrary host configuration.
+
+| Advisory / package | Affected intervals | First fixed releases | Default-flow reachability |
+| --- | --- | --- | --- |
+| [8468](https://api.osv.dev/v1/vulns/EEF-CVE-2026-8468), Plug multipart header exhaustion | [1.4.0,1.15.4), [1.16.0,1.16.3), [1.17.0,1.17.1), [1.18.0,1.18.2), [1.19.0,1.19.2) | 1.15.4 / 1.16.3 / 1.17.1 / 1.18.2 / 1.19.2 | No multipart parser in this strategy; host multipart endpoints may be exposed. |
+| [56814](https://api.osv.dev/v1/vulns/EEF-CVE-2026-56814), Plug multipart temp-file exhaustion | [1.4.0,1.16.6), [1.17.0,1.17.4), [1.18.0,1.18.5), [1.19.0,1.19.5), [1.20.0,1.20.3) | 1.16.6 / 1.17.4 / 1.18.5 / 1.19.5 / 1.20.3 | Same host multipart condition. |
+| [56813](https://api.osv.dev/v1/vulns/EEF-CVE-2026-56813), Plug cookie attribute injection | [0.1.0,1.16.6), then the same 1.17–1.20 intervals as 56814 | 1.16.6 / 1.17.4 / 1.18.5 / 1.19.5 / 1.20.3 | Ueberauth writes a cryptographically random, URL-safe state cookie with fixed default attributes; no attacker-controlled attribute path demonstrated here. |
+| [48598](https://api.osv.dev/v1/vulns/EEF-CVE-2026-48598), Tesla multipart disposition injection | [0.8.0,1.18.3) | 1.18.3 | No Tesla multipart API; token requests are form-urlencoded. |
+| [48595](https://api.osv.dev/v1/vulns/EEF-CVE-2026-48595), Tesla redirect authorization leakage | EEF: [1.4.0,1.18.3); GHSA alias: [0.6.0,1.18.3) | 1.18.3 | No FollowRedirects middleware; native redirects disabled. OAuth2 also lowercases headers before Tesla, avoiding this casing-specific bypass. |
+| [48597](https://api.osv.dev/v1/vulns/EEF-CVE-2026-48597), Tesla Mint atom exhaustion | [1.3.0,1.18.3) | 1.18.3 | Requires Mint and attacker-influenced URLs; neither is the default flow. |
+| [48594](https://api.osv.dev/v1/vulns/EEF-CVE-2026-48594), Tesla decompression bomb | [0.6.0,1.18.3) | 1.18.3 | Compression/DecompressResponse middleware is absent by default. |
+| [48596](https://api.osv.dev/v1/vulns/EEF-CVE-2026-48596), Tesla multipart Content-Type injection | [0.8.0,1.18.3) | 1.18.3 | No multipart content-type parameter API is used. |
+
+The [48595 upstream advisory](https://github.com/elixir-tesla/tesla/security/advisories/GHSA-9m9w-gxf7-rh8m)
+has inconsistent starting versions in its metadata and impact text; both cover
+the original Tesla 1.7.0 lock and agree on the patch floor. EEF/GHSA aliases are
+not counted as separate findings.
+
+Benchpro already locks Plug 1.20.3 and Tesla 1.20.0, fixing all eight findings.
+Its endpoint does enable multipart parsing, but the resolved parser is patched.
+A read-only copy of its complete lockfile also passes Hex 2.5.1 `mix hex.audit`.
+No Benchpro files or resolution were changed: there was no dependency advisory
+requiring a bump. Its published ueberauth_orcid 0.2.5 remains unchanged; deployment
+of this unreleased library and live login acceptance are still separate work.
+
+#### Transport correction and verification
+
+The supported OTP 25 default did not verify HTTPS peers:
+[httpc default SSL options](https://github.com/erlang/otp/blob/OTP-25.3.2.21/lib/inets/src/http_client/httpc.erl#L1024-L1032)
+were empty, and SSL defaulted to `verify_none`. A local self-signed HTTPS server
+returned HTTP 200 through the real OAuth helper before the fix. The retained
+regression also failed before the fix. Canonical OTP 27 already supplied
+[verified HTTPS defaults](https://github.com/erlang/otp/blob/OTP-27.3.4/lib/inets/src/http_client/httpc.erl#L808-L816);
+do not generalize the OTP 25 finding to all runtimes or Benchpro's deployment.
+
+The OAuth client now supplies native `:httpc.ssl_verify_host_options(true)`,
+a 5-second connect timeout, and a 15-second request timeout when using Httpc.
+This fixes the shared token/userinfo client without adding an adapter or CA
+dependency. Explicit adapter/client/request options keep their precedence;
+custom SSL lists must retain verification. Other adapters remain untouched.
+Native redirects remain disabled. OAuth2 debug logging includes credentials-bearing
+headers/bodies; the README documents keeping it off. Expected network-error
+translation and rejection of 3xx userinfo responses remain Phase 3 work.
+
+Verified locally on **both supported pairs**:
+
+- Isolated source copies pass locked dependency fetch, compilation, format, and
+  **4 tests, 0 failures**, including the native loopback TLS regression.
+- Fresh `MIX_ENV=prod` consumers decode userinfo JSON using default Jason and
+  honor a configured serializer, without Credo or ExDoc in the installed graph.
+  Canonical resolves Plug 1.20.3; the floor explicitly selects Plug 1.19.5.
+- Real transport smoke checks accept a trusted local CA with a matching hostname,
+  reject a mismatched hostname, preserve configured adapter trust options, and
+  do not follow a credential-bearing 302. Stalled requests time out at 15,001 ms;
+  a per-call 100 ms override returns at 101 ms. No real credentials/provider calls.
+- Hex 2.5.1 reports no retired or advisory-affected packages for the library and
+  both production consumers. This is a registry snapshot, not a future guarantee.
+
+The branch-aware dependency constraints were checked at each vulnerable/fixed
+boundary. A local `mix hex.build` succeeds and includes `SECURITY.md` and the
+runtime dependency requirements; nothing was published. Broader package metadata
+and documentation-link checks remain Phase 5 work.
+
+CI retains the supported matrix and adds a pinned/logged Hex 2.5.1 audit on PRs,
+master pushes, manual dispatch, and weekly Tuesday runs. Scheduled runs audit
+without repeating the matrix. The workflow passes actionlint 1.7.12; Dependabot
+YAML parses successfully. Monthly Mix proposals separate runtime/dev tools with
+at most two open PRs; Actions updates form one group with at most one open PR.
+No auto-merge. Mix security-update PRs are unsupported, so the weekly audit is
+the advisory-monitoring mechanism.
+
+Private reporting, dependency alerts, secret scanning, and push protection were
+enabled and confirmed through GitHub's API. `SECURITY.md` supplies private reporting
+and an email fallback. Scheduled automation and update proposals require these
+files on the default branch; hosted CI, live ORCID login, and deployed Benchpro
+settings remain unverified. No Phase 2 commit, push, release, or deployment is
+implied by these local results.
 
 ## Phase 3 — Authentication correctness and security
 
@@ -130,8 +236,8 @@ Current examples include [Plug multipart parsing DoS](https://osv.dev/vulnerabil
 - [ ] Use non-raising dependency APIs for expected token-exchange failures where available. Do not turn timeouts, bad/expired codes, revoked tokens, or invalid JSON into unhandled request crashes; do not blanket-rescue programming errors either.
 - [ ] Handle actual OAuth2 success/error tuple shapes for 400, 401, 403, 429, 5xx, transport errors, and malformed bodies. Do not accept redirects or arbitrary `200..399` responses as a valid userinfo document.
 - [ ] Validate the access token and required identity claim at the trust boundary before constructing a successful auth result. Reject empty/wrong-type values; optional profile omissions must remain valid.
-- [ ] Preserve Ueberauth's existing state protection, rather than implement a second mechanism. Locked Ueberauth 0.10.5 generates/checks cookie-backed state and deletes the cookie after a successful callback. Test matching/missing/mismatched state and missing cookies through the public pipeline; calling `handle_callback!/1` alone cannot prove CSRF protection. Separately test that replaying a consumed authorization code cannot authenticate again.
-- [ ] Remove the redundant `client_secret` parameter and duplicate client construction in `OAuth.get/4`. Source tracing confirms that locked OAuth2 2.1.0 does **not** serialize that parameter on the ordinary resource GET; this is not a demonstrated wire leak. Capture real outgoing requests to preserve bearer-only userinfo access across upgrades.
+- [ ] Preserve Ueberauth's existing state protection, rather than implement a second mechanism. Locked Ueberauth 0.10.8 generates/checks cookie-backed state and deletes the cookie after a successful callback. Test matching/missing/mismatched state and missing cookies through the public pipeline; calling `handle_callback!/1` alone cannot prove CSRF protection. Separately test that replaying a consumed authorization code cannot authenticate again.
+- [ ] Remove the redundant `client_secret` parameter and duplicate client construction in `OAuth.get/4`. Baseline source tracing confirmed that OAuth2 2.1.0 does **not** serialize that parameter on the ordinary resource GET; this is not a demonstrated wire leak. Capture real outgoing requests to preserve bearer-only userinfo access across upgrades.
 - [ ] Verify token-endpoint authentication against ORCID's advertised `client_secret_post` method. The current code adds body credentials while OAuth2's AuthCode strategy also adds Basic auth. Use the supported provider contract without removing working body authentication on the assumption that generic Basic auth is sufficient.
 - [ ] Keep provider/network errors free of authorization codes, tokens, client secrets, and raw sensitive response bodies. Do not blindly retry authorization-code exchange; codes are one-use credentials.
 

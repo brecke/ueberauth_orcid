@@ -49,6 +49,7 @@ defmodule Ueberauth.Strategy.Orcid.OAuth do
     json_library = Ueberauth.json_library()
 
     client_opts
+    |> Keyword.put(:request_opts, request_opts(Keyword.get(client_opts, :request_opts, [])))
     |> OAuth2.Client.new()
     |> OAuth2.Client.put_serializer("application/json", json_library)
   end
@@ -90,6 +91,24 @@ defmodule Ueberauth.Strategy.Orcid.OAuth do
     |> put_param("client_secret", client.client_secret)
     |> put_header("Accept", "application/json")
     |> OAuth2.Strategy.AuthCode.get_token(params, headers)
+  end
+
+  defp request_opts(opts) do
+    {adapter, adapter_opts} =
+      case Application.get_env(:oauth2, :adapter, Tesla.Adapter.Httpc) do
+        {adapter, adapter_opts} -> {adapter, adapter_opts}
+        adapter -> {adapter, []}
+      end
+
+    if adapter == Tesla.Adapter.Httpc do
+      adapter_opts
+      |> Keyword.merge(opts)
+      |> Keyword.put_new_lazy(:ssl, fn -> :httpc.ssl_verify_host_options(true) end)
+      |> Keyword.put_new(:connect_timeout, 5_000)
+      |> Keyword.put_new(:timeout, 15_000)
+    else
+      opts
+    end
   end
 
   defp check_credential(config, key) do

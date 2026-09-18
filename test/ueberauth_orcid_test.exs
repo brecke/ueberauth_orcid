@@ -142,4 +142,43 @@ defmodule UeberauthOrcidTest do
     refute Map.has_key?(callback.assigns, :ueberauth_auth)
     assert [%{message_key: "csrf_attack"}] = callback.assigns.ueberauth_failure.errors
   end
+
+  @tag capture_log: true
+  test "default HTTP transport rejects an untrusted TLS certificate" do
+    Application.delete_env(:oauth2, :adapter)
+
+    certificate =
+      :public_key.pkix_test_data(%{
+        root: [digest: :sha256, key: {:rsa, 2048, 65_537}],
+        peer: [digest: :sha256, key: {:rsa, 2048, 65_537}]
+      })
+
+    {:ok, listener} =
+      :ssl.listen(0, certificate ++ [ip: {127, 0, 0, 1}, active: false, reuseaddr: true])
+
+    on_exit(fn -> :ssl.close(listener) end)
+    {:ok, {_, port}} = :ssl.sockname(listener)
+
+    server =
+      Task.async(fn ->
+        {:ok, socket} = :ssl.transport_accept(listener, 5_000)
+
+        case :ssl.handshake(socket, 5_000) do
+          {:ok, socket} ->
+            :ssl.close(socket)
+            :accepted
+
+          error ->
+            error
+        end
+      end)
+
+    assert {:error, %OAuth2.Error{reason: :econnrefused}} =
+             Ueberauth.Strategy.Orcid.OAuth.get(
+               %OAuth2.AccessToken{access_token: "test-access-token"},
+               "https://localhost:#{port}/oauth/userinfo"
+             )
+
+    assert {:error, {:tls_alert, {:unknown_ca, _}}} = Task.await(server)
+  end
 end
