@@ -1,0 +1,276 @@
+# Maintenance roadmap
+
+Assessment date: 2026-09-18. Scope: maintain `ueberauth_orcid` as a small, reliable Ueberauth strategy, not turn it into a general ORCID API client.
+
+Benchpro's existing integration works. Preserve that behavior while making upgrades, failures, and future maintenance predictable. Checked items record completed research or verified implementation; unchecked items remain work to do, not claims that checks have passed.
+
+## Recommended order
+
+1. Restore a useful development/test baseline and establish minimal CI.
+2. Triage dependency advisories and make production dependencies explicit.
+3. Harden the authentication boundary, backed by behavioral regression tests.
+4. Finish static analysis and compatibility checks.
+5. Publish complete documentation, honest badges, and a verified release.
+6. Add optional ORCID capabilities only when a concrete consumer needs them.
+
+No rewrite, new supervision tree, general HTTP abstraction, or full Phoenix example application is needed for this work.
+
+## What the assessment actually found
+
+| Finding | Evidence | Consequence |
+| --- | --- | --- |
+| Published version is `0.2.5`, from June 2023 | [Hex metadata](https://hex.pm/api/packages/ueberauth_orcid) | Treat existing consumers as a compatibility constraint. |
+| Credo is already installed, not missing | `mix.exs:47`: `~> 0.8`; lockfile: `0.10.2` | Upgrade it rather than add a second linter. |
+| Tests currently cannot start on the available runtime | `mix test`, Elixir 1.18.4 / OTP 28: Credo compilation fails while embedding `@regex` | This is a development-tooling failure, not evidence that Benchpro login is broken. |
+| The only test is generated and invalid | `test/ueberauth_orcid_test.exs` calls `UeberauthOrcid.hello/0`; that function is absent | Replace it with real strategy tests, not a new `hello/0`. |
+| Production compilation succeeds, with warnings | `MIX_ENV=prod mix compile`; unused `allow_private_emails`, plus dependency deprecations | There is a working runtime baseline worth preserving. |
+| Formatting already passes | `MIX_ENV=prod mix format --check-formatted` | Add a check; no style rewrite is justified. |
+| Locked transitive dependencies have advisories | `mix hex.audit` exits 1 for Plug 1.14.2 and Tesla 1.7.0 | Prioritize dependency triage; an advisory does not by itself establish reachable exploitation in this strategy or Benchpro. |
+| JSON availability depends on the consuming app | Clean production probe returns `{Jason, false}` for `{Ueberauth.json_library(), Code.ensure_loaded?(Ueberauth.json_library())}` | Document or explicitly supply the runtime JSON dependency; dev/test Credo must not accidentally make tests pass. |
+| A missing family name raises | Direct `info/1` probe with only `given_name` raises `ArgumentError`; `orcid.ex:93` concatenates both fields | Handle optional profile claims without failing login. |
+| Space-separated scopes are not split | Direct credentials probe yields `["openid email profile"]`; `orcid.ex:72` splits on commas | Correct the OAuth scope representation and test empty/missing scope too. |
+| Cleanup retains the private token | Direct `handle_cleanup!/1` probe leaves `:orcid_token`; only `:orcid_user` is cleared | Clear temporary state; separately define the intended credentials/raw-info contract. |
+| OAuth configuration has correctness traps | `authorize_utl` typo, localhost redirect default, rewritten `options` variable in `get_token!/2` | Test effective URLs and request options, not merely keyword lists. |
+| The configurable OAuth module is only partially used | Request/token steps use `:oauth2_module`; `fetch_user/2` hardcodes the default module | Make configuration consistent across the whole flow; useful for consumers and tests. |
+| Documentation/release metadata is incomplete | Empty module docs; UID docs say `:id` while code uses `:sub`; `source_ref: "#v{@version}"`; changelog URL returns 404 | Fix consumer instructions and release links before presenting the project as refreshed. |
+| No CI configuration exists in the checkout | Repository inventory | Start small: Linux, deterministic tests, no ORCID secrets. |
+
+Baseline commands fetched the existing locked dependencies without upgrading them. No live ORCID login, Benchpro deployment, Dialyzer run, or Sobelow scan was performed. Local edge probes exercised strategy functions only, not the complete Ueberauth pipeline. Build/dependency directories are ignored artifacts.
+
+Runtime caveat: the host has Elixir 1.18.4 with OTP 28, whereas the [official compatibility table](https://hexdocs.pm/elixir/compatibility-and-deprecations.html) lists OTP 25–27 for Elixir 1.18. The observed failure is real, but it is not a supported-pair compatibility verdict. Start implementation on a documented supported pair.
+
+## Compatibility rules
+
+- Keep provider/module names, configuration keys, routes, and successful authentication shape unless a change is explicitly documented and versioned.
+- Preserve the current UID representation until Benchpro's storage and account-linking behavior are checked. Never substitute email or display name for the ORCID identity.
+- Do not silently change default scopes, introduce extra permissions, or add a new network request to the normal login path.
+- A dependency bump, new Elixir minimum, and authentication behavior change should be independently reviewable.
+- Protect tokens and client secrets even if that requires a documented compatibility change. Do not retain an unsafe behavior merely to avoid release notes.
+- Use Benchpro as the integration acceptance environment, not as a runtime dependency of this package.
+
+## Phase 1 — Useful baseline and minimal CI
+
+**Priority: first. Outcome: contributors can run meaningful checks before changing authentication.**
+
+- [x] Record the Elixir/OTP, Ueberauth, OAuth2, JSON library, adapter, callback URL, scopes, and configuration actually used by Benchpro. Record configuration shape only, never credentials.
+- [x] Document which `Ueberauth.Auth` fields Benchpro persists or reads, including UID, name, nickname, email, scopes, credentials, and `extra.raw_info`.
+- [x] Choose a supported Elixir/OTP policy. `elixir: "~> 1.14"` currently advertises a broad range; do not silently drop its lower bound just to accommodate tooling. Check valid Elixir/OTP pairings rather than creating an arbitrary Cartesian matrix.
+- [x] Upgrade Credo to a maintained release compatible with the selected floor. Keep development tools out of runtime applications. Bound ExDoc to an intentional compatible range instead of `>= 0.0.0`.
+- [x] Delete the generated greeting test. Add an offline request-redirect test and a successful callback/auth-result test using synthetic ORCID data.
+- [x] Establish one test seam using the existing configurable OAuth module and/or the installed HTTP client's test facility. Do not add mocks, a local server, and an HTTP wrapper all at once.
+- [x] Add a minimal GitHub Actions workflow for pull requests and pushes: dependency fetch, compilation, format check, tests. Add subsequent gates when their baselines are clean, not as permanently ignored failures.
+- [x] Keep application environment changes isolated and restored in tests; tests that mutate global configuration must not race under `async: true`.
+
+### Benchpro compatibility baseline (read-only source review, 2026-09-18)
+
+Evidence below is from the sibling `../benchpro` checkout, not a running deployment. No secret files, credentials, database records, or live ORCID responses were inspected. The working-login report remains the integration baseline; checked-in declarations do not establish the deployed toolchain, lockfile, environment overrides, or granted permissions.
+
+| Concern | Checked-in contract and evidence |
+| --- | --- |
+| Runtime declaration | `.tool-versions` declares Elixir `1.18.4-otp-28` and Erlang `28.1`. This is outside Elixir 1.18's documented OTP 25–27 range; it is not proof of the runtime serving Benchpro. The library's canonical supported local pair is Elixir `1.18.4-otp-27` / OTP `27.3.4`, not a claim that Benchpro was migrated. |
+| Consumer resolution | `mix.lock` locks `ueberauth_orcid 0.2.5`, Ueberauth `0.10.8`, OAuth2 `2.1.1`, Tesla `1.20.0`, and Jason `1.4.5`. These differ from this library's own runtime dependency lock and must be validated separately before rollout. |
+| JSON and HTTP adapter | `config/config.exs:197-210` configures Phoenix's JSON library as Jason and the ORCID provider. No Ueberauth JSON override or OAuth2 adapter override was found in the inspected `config/` and application source. The inspected dependency sources default Ueberauth JSON to Jason (`deps/ueberauth/lib/ueberauth.ex:258-260`) and OAuth2 HTTP to `Tesla.Adapter.Httpc` (`deps/oauth2/lib/oauth2/request.ex:88-93`). These are source-derived defaults, not observations of a deployed adapter; Benchpro also having Finch installed does not select it for this OAuth flow. |
+| Callback configuration | `config/runtime.exs:44-76,181-196,358-372` derives `app_base_url` from `APP_BASE_URL` or scheme/host/port defaults. `ORCID_REDIRECT_URI` overrides the default `#{app_base_url}/auth/orcid/callback`; the same value is passed as provider `callback_url` and OAuth client `redirect_uri`. Absent overrides, the production configuration defaults to `https://benchpro.ai/auth/orcid/callback` and development to `http://benchpro.local.gd:4000/auth/orcid/callback`. Production/staging checks require HTTPS and the canonical callback (`runtime.exs:425-466`). Actual environment values and the registered ORCID callback were not inspected. |
+| Credentials and scopes | `runtime.exs:186-223` reads client ID/secret from environment, with synthetic test fallbacks only. The scope is `openid email profile`, adding `/read-limited` when `ORCID_MEMBER_API_ENABLED` is true (default false outside tests, true in tests). The strategy receives that scope through provider `default_scope`; a reauthorization request also supplies `Orcid.authorization_scope()` as the request scope (`user_session_controller.ex:54-62`). Configured scope is not proof of granted scope. |
+| Custom OAuth contract | `lib/benchpro/orcid/prompt_login_oauth.ex:1-13` exports only `authorize_url!/1,2` and `get_token!/1,2`. Authorization adds `prompt=login`, then delegates to `Ueberauth.Strategy.Orcid.OAuth`; token exchange delegates unchanged. It has no `get/4`. Preserve the current split: custom module for authorize/token, default module for userinfo. Making `oauth2_module` apply to userinfo later requires a coordinated consumer change, not an incidental Phase 1 refactor. |
+
+The callback entry point is `lib/benchpro_web/controllers/user_session_controller.ex`, which plugs Ueberauth for request/callback actions and consumes its `:ueberauth_auth` / `:ueberauth_failure` assignments (`:4,21-50`). Actual account consumers establish the following contract:
+
+| Auth field | Actual read/persistence behavior |
+| --- | --- |
+| `provider`, `uid` | The generic callback reads both, uppercases the provider to `"ORCID"`, and passes UID unchanged into `user_identity` (`user_session_controller.ex:68-104,565-569`). `Accounts.get_user_by_orcid/1` delegates to `Accounts.Users`, whose query accepts trimmed input plus canonical/checksum-case variants and returns only an unambiguous user (`accounts.ex:19`, `accounts/users.ex:36-61`). `Accounts.User.get_orcid/1` exposes the stored UID only for provider `"ORCID"` (`accounts/user.ex:356-365`). Do not replace the ORCID subject with email, name, or a different UID representation. |
+| `info.name`, `info.nickname`, `extra.raw_info.user` | `orcid_name_fields/1` reads raw `given_name` and `family_name`; `info.nickname` is the preferred credit name, with raw `name` as fallback. If both raw names are absent/blank, it splits `info.name`; it also supports the info-only case (`user_session_controller.ex:516-563`). The resulting given/family/credit names are registration attributes persisted by the user changeset (`accounts/user.ex:112-114,390-399`, `accounts/registration.ex:32-35`). Raw userinfo is therefore an active consumer contract, not unused debug output. |
+| `info.email` | The callback does not use it: it initializes email to nil and separately calls `Orcid.fetch_email(uid)` for a public email on new-account login, with a manual-email/pending-registration path if absent (`user_session_controller.ex:82-115,142-179,276-280`). `get_or_create_user/1` may link an existing account by that separately obtained email (`:188-225`); this is not evidence that auth-info email drives account identity. |
+| `credentials.token`, `refresh_token` | Both are read into identity attributes on login and reauthorization (`user_session_controller.ex:68-94,327-359`). `Accounts.UserIdentity` persists both through `Benchpro.Encrypted.Binary` ciphertext columns and requires both in its changeset (`accounts/user_identity.ex:11-28`). Existing-identity rotation checks provider and equivalent ORCID UID before updating tokens/scopes (`accounts/registration.ex:55-156`); reauthorization additionally checks the currently logged-in account and return target. Optional refresh-token changes therefore need consumer validation. |
+| `credentials.scopes` | Stored as `granted_scopes`, with nil becoming `[]` at the callback. The identity changeset already splits each entry on commas or whitespace and deduplicates (`accounts/user_identity.ex:25-36`), so this consumer compensates for the library's current multi-scope parsing bug. `Orcid.Api` checks for `/read-limited` before using the stored UID/access token for member funding calls (`orcid/api.ex:485-520`). Preserve requested-versus-granted scope distinction; do not bless the library bug as correct. |
+| Other credentials / raw token | No callback read of `credentials.expires`, `expires_at`, or `token_type` was found (the generic callback has only a commented-out `expires_at` binding). No consumer of `extra.raw_info.token` was found in the inspected application source. This does not justify removing it silently: `extra.raw_info.user` is actively read, and any token-duplication change belongs to the later documented compatibility review. |
+
+### Phase 1 implementation status
+
+The generated greeting test has been replaced with offline public `Ueberauth.call/2` request, full code-exchange/userinfo success, and mismatched-state rejection cases. The only HTTP seam is installed `Tesla.Mock`; state is copied from the request cookie into the callback with CSRF protection left enabled. Global application settings are restored in `on_exit`, and the suite is non-async. A single granted `openid` scope avoids pinning the known broken multi-scope split. Runtime `lib/` code and Benchpro are unchanged.
+
+Verified on 2026-09-18 in clean temporary source copies: locked dependency fetch, compilation, format check, and all three tests pass on Elixir 1.14.5 / OTP 25.3.2.21 and Elixir 1.18.4 / OTP 27.3.4. The ordinary working checkout also passes on the canonical pair after recompiling stale artifacts from the previously selected OTP. A separate in-process smoke check confirms the tests restore both pre-existing application settings and absent keys.
+
+Credo 1.7.19 starts on both pairs; ExDoc 0.36.1 generates documentation on the canonical development pair. This is tooling smoke coverage, not a clean Credo analysis or a documentation-link audit. Existing source/dependency warnings remain visible, including Credo's `Map.intersect/2` warning in its check-author test helper on Elixir 1.14.
+
+The GitHub Actions definition passes actionlint 1.7.12. It uses two explicit supported pairs, read-only permissions, pinned actions, and no ORCID secrets or external test service. Hosted GitHub execution remains unverified until pushed; no remote CI success, live login, deployed Benchpro inspection, missing-profile fix, scope-parsing fix, or runtime dependency upgrade is claimed. See [CONTRIBUTING.md](CONTRIBUTING.md) for reproducible commands.
+
+**Acceptance:** a fresh checkout can follow the documented commands and pass real authentication tests without credentials or external network calls after dependency installation. CI runs on fork pull requests. Any unsupported runtime is explicitly excluded and documented.
+
+## Phase 2 — Dependency and supply-chain safety
+
+**Priority: high; do not wait for cosmetic cleanup.**
+
+- [ ] Triage all current `mix hex.audit` findings against actual adapter/middleware use. Record package, affected range, fixed release, reachability, and disposition. Consult advisories again at implementation time; this list is a snapshot.
+- [ ] Upgrade OAuth2, Ueberauth, and their dependency resolutions in reviewable groups. Check release notes and reproduce the successful login contract after each group; do not run an indiscriminate update and assume compilation proves compatibility.
+- [ ] Review both the library lockfile and Benchpro's lockfile. A library's lockfile is not the dependency resolution installed by its Hex consumers.
+- [ ] Raise dependency lower bounds only where required for correctness/security, and explain why. Update the application resolution too; publishing this library alone does not upgrade Benchpro.
+- [ ] Make the JSON contract explicit: either declare the supported default as a runtime dependency, or require and document the consumer-provided serializer as Ueberauth does. Preserve configured alternative serializers where supported. Test the chosen contract in a production-only consumer.
+- [ ] Audit the actual production HTTP adapter: TLS peer/hostname verification, timeout behavior, redirect policy, and credential handling. Do not assume every Tesla adapter/middleware has the same behavior.
+- [ ] Pin/log a maintained Hex version and add `mix hex.audit` to maintenance/CI. Current Hex checks both security advisories and retired releases; older versions only checked retirement. Use `mix hex.outdated --all` for review, not a rule requiring every dependency to be newest.
+- [ ] Add one dependency-update mechanism, preferably Dependabot for Mix and GitHub Actions. Use a low-noise schedule and reviewed updates; do not auto-merge authentication dependencies without passing tests. GitHub currently supports Mix version updates but not Mix security-update PRs, so the bot does not replace scheduled Hex auditing.
+- [ ] Add private vulnerability-reporting instructions and enable available GitHub dependency/security alerts. Keep secrets, real tokens, and private ORCID records out of issue templates and fixtures.
+
+Current examples include [Plug multipart parsing DoS](https://osv.dev/vulnerability/EEF-CVE-2026-8468) and [Tesla cross-origin redirect authorization leakage](https://osv.dev/vulnerability/EEF-CVE-2026-48595). Their presence in a lockfile is a triage signal, not a finding that either behavior is exercised by this package.
+
+**Acceptance:** no untriaged advisory remains; any accepted risk has a reason and review date. The supported production consumer decodes JSON successfully without pulling in Credo or ExDoc. Benchpro's own resolved dependencies are reviewed before rollout.
+
+## Phase 3 — Authentication correctness and security
+
+**Priority: high. Fix at the shared boundary, with a reproducing test for each defect.**
+
+### Request, callback, and errors
+
+- [ ] Correct `authorize_utl` to the supported client option and test the resulting authorization URL. An upstream fallback may mask the typo today.
+- [ ] Make callback/redirect URI handling consistent between authorization and token exchange. Test deployment behind a correctly configured HTTPS reverse proxy and explicit callback overrides; never derive trusted redirect configuration from arbitrary untrusted headers.
+- [ ] Remove the implicit localhost production trap while keeping a documented local-development recipe. Missing required configuration should fail clearly without exposing values.
+- [ ] Preserve the intended `get_token!/2` options structure: headers, HTTP options, and client options are currently obscured by rebinding. Characterize existing callers before changing the public helper contract.
+- [ ] Use `:oauth2_module` consistently for authorization, token exchange, and userinfo retrieval.
+- [ ] Handle provider denial (`error`, `error_description`) distinctly from a missing authorization code. Return Ueberauth failures with sanitized, stable categories.
+- [ ] Use non-raising dependency APIs for expected token-exchange failures where available. Do not turn timeouts, bad/expired codes, revoked tokens, or invalid JSON into unhandled request crashes; do not blanket-rescue programming errors either.
+- [ ] Handle actual OAuth2 success/error tuple shapes for 400, 401, 403, 429, 5xx, transport errors, and malformed bodies. Do not accept redirects or arbitrary `200..399` responses as a valid userinfo document.
+- [ ] Validate the access token and required identity claim at the trust boundary before constructing a successful auth result. Reject empty/wrong-type values; optional profile omissions must remain valid.
+- [ ] Preserve Ueberauth's existing state protection, rather than implement a second mechanism. Locked Ueberauth 0.10.5 generates/checks cookie-backed state and deletes the cookie after a successful callback. Test matching/missing/mismatched state and missing cookies through the public pipeline; calling `handle_callback!/1` alone cannot prove CSRF protection. Separately test that replaying a consumed authorization code cannot authenticate again.
+- [ ] Remove the redundant `client_secret` parameter and duplicate client construction in `OAuth.get/4`. Source tracing confirms that locked OAuth2 2.1.0 does **not** serialize that parameter on the ordinary resource GET; this is not a demonstrated wire leak. Capture real outgoing requests to preserve bearer-only userinfo access across upgrades.
+- [ ] Verify token-endpoint authentication against ORCID's advertised `client_secret_post` method. The current code adds body credentials while OAuth2's AuthCode strategy also adds Basic auth. Use the supported provider contract without removing working body authentication on the assumption that generic Basic auth is sufficient.
+- [ ] Keep provider/network errors free of authorization codes, tokens, client secrets, and raw sensitive response bodies. Do not blindly retry authorization-code exchange; codes are one-use credentials.
+
+### Identity, profile, and temporary state
+
+- [ ] Keep ORCID `sub` as the current stable UID source; explicitly define behavior for missing/invalid identity. Consider any alternate `/authenticate` flow separately rather than changing UID lookup implicitly.
+- [ ] Make name mapping nil-safe and tolerant of absent, blank, and malformed optional fields. Define fallback behavior using ORCID's available name claims, not invented profile data.
+- [ ] Review `nickname: user["name"]` against existing consumers before remapping it. An apparently nicer mapping can still be an API break.
+- [ ] Define email behavior explicitly: an email request is not a guarantee of an email response. Never fail login for missing email or use an unverified/private email assumption to link accounts.
+- [ ] Remove the unused `allow_private_emails` variable and misleading documentation/advertised options, if any. Do not implement access to private email just to justify dead code.
+- [ ] Parse granted scopes as OAuth space-delimited values, with a clear empty/missing-scope result. Keep requested scopes distinct from actually granted scopes.
+- [ ] Preserve optional refresh-token and expiration semantics; do not invent expiration or assume a refresh token is always issued.
+- [ ] Clear both temporary private user and token fields on success/failure cleanup. This is distinct from credentials intentionally returned in `Ueberauth.Auth`.
+- [ ] Review token duplication in `extra.raw_info`. Prefer not duplicating secrets, but first check Benchpro's contract and document/version any removal. Warn consumers not to log the complete auth struct even after cleanup.
+- [ ] Tighten configuration errors for missing, nil, blank, wrong-type, and unavailable environment-based credentials. Errors should identify the key, never print its value.
+- [ ] Remove obsolete comments and generator remnants, fix empty module docs and the incorrect UID default documentation, and add useful public API typespecs. Avoid mechanical abstractions or callback renames.
+
+**Acceptance:** successful auth retains the agreed consumer-visible contract; every expected provider/network failure produces a controlled failure; optional profile omissions do not crash; state/credential protections are exercised through the real request boundary.
+
+## Required behavioral test inventory
+
+Use ExUnit and `Plug.Test` already available through the stack. Keep fixtures synthetic and small. Mock the external boundary, not the strategy logic under test. Add cases alongside their fixes, rather than a large unrelated test-only rewrite.
+
+| Area | Observable cases to protect |
+| --- | --- |
+| Authorization request | Trusted production/sandbox endpoint; encoded client ID, scope, callback URL, state; configuration overrides honored. |
+| Complete successful callback | Correct UID, defined profile fields, granted scopes, token type/expiration, and configured OAuth implementation used end-to-end. |
+| State boundary | Matching state reaches exchange; missing/mismatched state or missing cookie fails before exchange; success clears the state cookie; consumed-code replay cannot authenticate again. |
+| Provider refusal | Access denied, missing code, expired/reused code, malformed token response, missing/empty token. |
+| Userinfo failure | Unauthorized/forbidden, rate limit, server error, timeout, connection error, invalid JSON, unexpected content type/body, redirects rejected as profile data. |
+| Profile/identity | Minimal valid identity, absent family/given names, Unicode names, absent/private email, wrong-type claims, missing identity; no email-based identity fallback. |
+| Credentials | Space-delimited/missing/empty granted scopes, absent refresh token, expiring/non-expiring token. |
+| Configuration | Production and sandbox do not mix; callback consistency; supported serializer; bad credentials fail clearly and safely; HTTP/client options affect the actual request. |
+| Secret handling | Token exchange secrets not sent to unrelated hosts/resources, no sensitive failure output, temporary private fields cleaned. |
+| Packaging | Fresh production-only consuming application can install, start required applications, decode responses, and run the documented integration. |
+
+Use `mix test --cover` initially; set an explicit realistic threshold after meaningful tests exist (Mix has a default threshold, so measurement can itself fail). Coverage is a gap detector, not evidence that authentication is secure. No need for ExCoveralls or a hosted coverage service until a coverage report/badge provides real value.
+
+Keep a separate, explicitly invoked ORCID sandbox smoke procedure. Normal CI must not require live ORCID, credentials, consenting accounts, or network availability. A real sandbox login is a release check, not a deterministic unit test.
+
+## Phase 4 — Quality tools and sustainable CI
+
+| Check | Decision | Gate |
+| --- | --- | --- |
+| Formatter | Use built-in `mix format --check-formatted`. | Every PR. |
+| Compiler | `MIX_ENV=test mix compile --warnings-as-errors`, plus `mix test --warnings-as-errors` for test compilation. Review dependency warnings without blanket suppression. | Every supported test pairing. |
+| ExUnit | `mix test`; coverage on one canonical pairing. | Every PR. |
+| Credo | Upgrade existing dependency; run `mix credo --strict` after fixing actionable findings. No giant configuration file unless needed. | One canonical pairing. |
+| Dialyzer | Add Dialyxir as a development-only, non-runtime dependency; run `mix dialyzer`. Fix types/contracts, not blanket ignore files. | One canonical pairing; cache PLTs by OS/OTP/Elixir/dependencies. |
+| Sobelow | Add and evaluate it on this library. It primarily targets Phoenix applications but also detects broader unsafe Elixir patterns; it is not an OAuth audit. | Explicitly configure failure severity: default invocation does not fail the build. Review medium/low findings too; retain a permanent gate only if relevant, with narrow explained exclusions. |
+| Dependency audit | Native Hex advisory/retirement checks; review outdated packages separately. | PRs plus scheduled checks to catch newly published advisories. |
+| Documentation/package | Build ExDoc and `mix hex.build`; inspect links and package contents. | Canonical pairing and release preparation. |
+
+### CI hosting and safety
+
+- [ ] Use GitHub Actions on standard GitHub-hosted Linux runners for this public GitHub repository. Verify current billing rules before enabling paid runner classes or changing visibility.
+- [ ] Test the supported minimum and a current stable Elixir/OTP pairing; include Benchpro's pair if neither covers it. Pin explicit versions and use a valid compatibility table when choosing them.
+- [ ] Run analysis/docs on one pairing, not on the whole matrix. Avoid macOS/Windows jobs unless a platform-specific support need emerges.
+- [ ] Start without caches if builds are already quick. If useful, cache dependencies/builds by OS/architecture, Elixir, OTP, environment, and lockfile; cache Dialyzer PLTs separately. Never cache secrets or the entire Hex home; a cold build must work, and release jobs must not trust PR-built artifacts.
+- [ ] Use read-only default token permissions, pinned action revisions, timeouts, and cancellation of superseded PR builds. Keep third-party actions minimal and update pins deliberately.
+- [ ] Run untrusted contributions with `pull_request`, without secrets. Never run PR code in a privileged `pull_request_target` job. Keep publishing separate from PR validation.
+- [ ] Add a scheduled audit and dependency update review. Consider an unlocked/latest-compatible dependency job only after the locked baseline is stable; it answers a different question from reproducible CI.
+- [ ] Require the small stable check set before merging. Keep manual release approval; release automation can come later.
+
+**Free versus open source:** [standard GitHub-hosted runners are free for public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions); larger runners are charged, and storage/cache allowances still matter. GitHub Actions' hosted service is not a fully open-source CI system, although its [runner is MIT-licensed](https://github.com/actions/runner/blob/main/LICENSE). If an open-source control plane is a requirement, [Woodpecker](https://woodpecker-ci.org/docs/intro) is an Apache-2.0 alternative; [Forgejo Actions](https://forgejo.org/docs/latest/user/actions/overview/) is another route on a Forgejo instance. Neither guarantees free hosted compute. Use an existing instance rather than operate another CI stack just for this library.
+
+**Acceptance:** all documented local checks can be reproduced in CI; fork PRs work without secrets; the supported matrix is honest; no permanently allowed-failing quality job or unexplained warning suppression remains.
+
+## Phase 5 — Documentation, badges, and release
+
+### README and HexDocs
+
+- [ ] Replace generated installation prose with a real setup guide: dependency, runtime credentials, Ueberauth provider registration, host app session/pipeline requirements, request/callback routes, and success/failure handling.
+- [ ] Remove the unrelated `Benchlight.Application` example. Check application auto-start behavior before telling users to manually extend `extra_applications`.
+- [ ] Show production and sandbox registration/setup separately; explain callback registration, HTTPS, environment-specific credentials, scopes, JSON configuration, and the expected returned auth fields.
+- [ ] Document every supported option and its default, including scope override policy, callback override, custom OAuth module, and credential configuration. Do not advertise settings that do nothing.
+- [ ] Explain optional names/emails, token privacy, logging precautions, account linking, and the division of responsibilities between ORCID, the strategy, Ueberauth, and the consuming app.
+- [ ] Add troubleshooting for state/cookie failures, redirect mismatches, consent denial, missing profile data, configuration errors, and upstream outages. Never request users' secrets in bug reports.
+- [ ] Update `CONTRIBUTING.md` with exact setup/check commands, supported runtime policy, isolated test rules, and sandbox testing instructions.
+- [ ] Add a changelog and security-reporting policy; include the appropriate documentation files in the Hex package and ExDoc extras. Avoid creating a large governance-document collection for a tiny library.
+- [ ] Fix ExDoc source refs to actual tags. Existing tags are `0.2.5`-style, not `v0.2.5`; the current `"#v{@version}"` string is not interpolation.
+- [ ] Verify generated source links, README links, module docs, and the advertised changelog URL before publishing.
+
+### Badges worth adding
+
+Start with **CI status**, **Hex version**, **HexDocs**, and **MIT license**. Link each badge to the actual workflow, package, documentation, or license. Add them only when their destinations exist and accurately describe the released/default-branch state.
+
+Coverage is optional, only with a maintained report. Skip downloads, stars, build-tool logos, or generic “secure” badges: they do not establish quality. A Sobelow badge is not proof that the OAuth integration is secure.
+
+### Release checklist
+
+- [ ] Choose release numbering from the actual compatibility impact. Security/bug fixes, new opt-in features, and changed defaults need distinct release notes; pre-1.0 is not permission for silent breaks.
+- [ ] Run the full documented check set from a clean dependency/build state on the supported matrix.
+- [ ] Build the package, inspect its contents, and install it in a disposable production-mode consumer. Ensure no credentials, fixtures with private data, or development tooling are shipped as runtime dependencies.
+- [ ] Perform sandbox login and denial flows using registered sandbox credentials. Inspect returned UID/profile/credentials without writing secrets to logs.
+- [ ] Validate in Benchpro staging: existing account login returns the same identity; fresh account behavior is intentional; missing profile/email and provider denial are handled; no duplicate account is created.
+- [ ] Record the previous dependency version/lockfile and rollback procedure before rolling out Benchpro. Any identity or data migration needs its own reversible plan.
+- [ ] Publish matching package/docs/tag/release notes, then verify the public package installation, HexDocs links, and badges. Do not publish as a side effect of an ordinary branch push.
+- [ ] Establish a lightweight maintenance cadence: scheduled automated audit/update proposals, periodic triage, and a sandbox check before authentication-affecting releases.
+
+**Acceptance:** a new user can install and configure the package from the README without relying on knowledge from Benchpro; the released artifact works independently; Benchpro's existing account identity survives the upgrade.
+
+## Phase 6 — ORCID capability review, not automatic scope expansion
+
+The current implementation requests `openid email profile` and fetches `/oauth/userinfo`. [Live production discovery](https://orcid.org/.well-known/openid-configuration) and [sandbox discovery](https://sandbox.orcid.org/.well-known/openid-configuration) advertise `openid`, not the `email` or `profile` scope names; their claims list includes names and `sub`, but no email. The current upstream userinfo model likewise has no email field. This does **not** establish that the extra scope strings are rejected in Benchpro's working flow: no authenticated scope experiment was performed.
+
+For the existing userinfo architecture, assess `openid` as the minimal default after characterizing Benchpro compatibility, and document any change. `/authenticate` is a different valid login path: its identity comes from the token response's `orcid` field, and substituting that scope alone would leave the current userinfo request without its required `openid` permission. Discovery is not an exhaustive catalog of ordinary ORCID API scopes.
+
+Production login endpoints use `orcid.org`; sandbox uses `sandbox.orcid.org`. Merely overriding `site` is currently insufficient because `token_url` is an absolute production URL. Record APIs instead use `pub.orcid.org`/`api.orcid.org` and their sandbox counterparts. Preserve the current bare ORCID UID and supported `uid_field` customization; isolate sandbox accounts from production rather than silently changing UID format.
+
+| Capability | Roadmap disposition |
+| --- | --- |
+| Sandbox support | Document and test coherent environment-specific endpoints and credentials now; a convenience option is warranted only if existing configuration is too error-prone. |
+| Identity-only `/authenticate` flow | Evaluate as a distinct optional mode if Benchpro or another consumer wants it. It requires an explicit token-response identity mapping, not just swapping the current scope string. |
+| Profile/email claims | Names can be absent/null; email is not a supported userinfo promise. Tolerate omissions and remove misleading private-email expectations rather than request broader API access for login. |
+| ORCID record URL/display | Document canonical ORCID links and official display guidelines; only add mapped fields if consumers need them. Keep UI rendering out of the strategy. |
+| Authorization UX parameters | Consider documented language/login/prompt/account-selection parameters only for a concrete UX need. Allowlist supported parameters; do not blindly forward arbitrary query parameters. |
+| PKCE | Not implemented here; provider support remains unverified. Neither inspected discovery document advertises `code_challenge_methods_supported`. Absence alone does not prove lack of support. Require authoritative support and sandbox S256 success/failure checks before advertising it. |
+| Full OIDC ID-token validation | If ID tokens become an identity source, require signature, issuer, audience, expiry, nonce, and subject consistency checks with a maintained implementation. Merely requesting `openid` is not a claim of full OIDC-client validation. |
+| Refresh/revoke helpers | ORCID documents both capabilities, but this package has no dedicated lifecycle API. Credentials already expose refresh/expiry fields; generic dependency refresh support does not prove ORCID wire-auth compatibility. Document token storage/disconnection ownership first; add explicit helpers only for a consumer need, not a background worker. Local logout is not ORCID token revocation. |
+| Member API scopes, affiliations, works, record writes, webhooks | Outside this maintenance release. These require distinct permissions, privacy/consent handling, and often ORCID membership; use a separate API client/integration if needed. |
+
+## Suggested PR-sized delivery sequence
+
+1. **Development baseline:** Credo/ExDoc compatibility, replace generated test with actual request/success tests, support policy, minimal CI.
+2. **Dependency safety:** advisory triage, targeted runtime dependency updates, explicit JSON contract, production-consumer check, audit/update automation.
+3. **Callback hardening:** request/client option consistency, error handling, optional profile data, scopes, state-boundary tests, cleanup and secret handling. Split further by independently testable behavior if needed.
+4. **Quality gates:** typespec corrections, Dialyxir, scoped Sobelow, complete supported matrix and coverage visibility.
+5. **Release readiness:** README/HexDocs/changelog/security guidance, source links, badges, sandbox and Benchpro staging checks, release.
+6. **Demand-driven features:** only separately accepted ORCID capability work from Phase 6.
+
+The maintenance release is done after PRs 1–5 meet their acceptance criteria. Phase 6 is a decision backlog, not a prerequisite or a promise to implement everything.
+
+## Primary references
+
+These informed the roadmap; recheck provider/tool behavior when implementing it.
+
+- **ORCID:** [OIDC guide](https://github.com/ORCID/ORCID-Source/blob/main/orcid-web/ORCID_AUTH_WITH_OPENID_CONNECT.md), [supported OAuth scopes](https://info.orcid.org/ufaqs/what-is-an-oauth-scope-and-which-scopes-does-orcid-support/), [redirect registration rules](https://info.orcid.org/ufaqs/how-do-redirect-uris-work/), [userinfo model](https://github.com/ORCID/ORCID-Source/blob/main/orcid-core/src/main/java/org/orcid/core/oauth/openid/OpenIDConnectUserInfo.java), [refresh protocol](https://github.com/ORCID/ORCID-Source/blob/main/orcid-api-web/tutorial/refresh_tokens.md), [revocation protocol](https://github.com/ORCID/ORCID-Source/blob/main/orcid-api-web/tutorial/revoke.md).
+- **Existing security boundary:** [Ueberauth 0.10.5 state implementation](https://github.com/ueberauth/ueberauth/blob/v0.10.5/lib/ueberauth/strategy.ex#L318-L429), [OAuth2 2.1.0 request serialization](https://github.com/ueberauth/oauth2/blob/v2.1.0/lib/oauth2/request.ex), [authorization-code strategy](https://github.com/ueberauth/oauth2/blob/v2.1.0/lib/oauth2/strategy/auth_code.ex).
+- **Quality tooling:** [Credo usage](https://hexdocs.pm/credo/basic_usage.html), [Dialyxir](https://hexdocs.pm/dialyxir/readme.html), [Sobelow](https://github.com/nccgroup/sobelow), [native Mix coverage](https://hexdocs.pm/mix/1.14.5/Mix.Tasks.Test.html#module-coverage), [Hex audit](https://hexdocs.pm/hex/Mix.Tasks.Hex.Audit.html), [Hex outdated](https://hexdocs.pm/hex/Mix.Tasks.Hex.Outdated.html).
+- **CI and maintenance:** [GitHub Actions security](https://docs.github.com/en/actions/reference/security/secure-use), [Dependabot ecosystem support](https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories), [workflow badges](https://docs.github.com/en/actions/how-tos/monitor-workflows/add-a-status-badge), [setup-beam](https://github.com/erlef/setup-beam).
+- **Publishing:** [Hex build](https://hexdocs.pm/hex/Mix.Tasks.Hex.Build.html), [Hex publish/dry run](https://hexdocs.pm/hex/Mix.Tasks.Hex.Publish.html), [existing release tags](https://api.github.com/repos/brecke/ueberauth_orcid/tags).

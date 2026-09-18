@@ -44,8 +44,8 @@ defmodule UeberauthOrcid.MixProject do
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
       {:oauth2, "~> 2.0"},
       {:ueberauth, "~> 0.10"},
-      {:credo, "~> 0.8", only: [:dev, :test], runtime: false},
-      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
+      {:credo, "~> 1.7.19", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.36.1", only: :dev, runtime: false}
     ]
   end
 

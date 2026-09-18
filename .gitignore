@@ -24,3 +24,6 @@ ueberauth_orcid-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# Local orchestration SDK, processes, and run journals.
+/.a5c/
