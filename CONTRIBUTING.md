@@ -2,19 +2,22 @@
 
 ## Toolchains and quick start
 
-The library retains its Elixir `~> 1.14` requirement. CI checks two explicit
+The library retains its Elixir `~> 1.14` requirement. CI checks these explicit
 [compatible Elixir/OTP pairs](https://hexdocs.pm/elixir/compatibility-and-deprecations.html#between-elixir-and-erlang-otp),
 not every combination:
 
 | Purpose | Elixir build | Erlang/OTP |
 | --- | --- | --- |
 | Compatibility floor | `1.14.5-otp-25` | `25.3.2.21` |
-| Canonical development | `1.18.4-otp-27` | `27.3.4` |
+| Existing consumer baseline | `1.18.4-otp-27` | `27.3.4` |
+| Current stable / canonical development | `1.20.4-otp-27` | `27.3.4` |
 
-The floor preserves existing consumer compatibility; it is not a recommendation
-to deploy an end-of-life Elixir release. The canonical pair is intentionally
-reproducible, not a claim to track the latest release. Elixir 1.18 with OTP 28 is
-unsupported and excluded. Other pairs are not covered by this CI matrix.
+Elixir 1.20.4 was the current stable release when checked on 2026-09-18.
+OTP 27 is supported by both 1.18 and 1.20. The floor preserves consumer
+compatibility; it is not a recommendation to deploy an end-of-life release.
+Benchpro declares Elixir 1.18 with OTP 28, an unsupported pair; it is not
+advertised as supported here. The 1.18/OTP 27 job tests the compatible consumer
+baseline, not Benchpro's deployed environment.
 
 Install [mise](https://mise.jdx.dev/getting-started.html), then run these commands
 from the repository root. `.tool-versions` selects the canonical pair locally;
@@ -26,15 +29,21 @@ mise exec -- mix local.hex 2.5.1 --force
 mise exec -- mix local.rebar --force
 export MIX_ENV=test
 mise exec -- mix deps.get --check-locked
-mise exec -- mix compile
+mise exec -- mix compile --warnings-as-errors
 mise exec -- mix format --check-formatted
-mise exec -- mix test
+mise exec -- mix test --warnings-as-errors --cover
 ```
 
-CI installs Rebar through `setup-beam`, explicitly installs/logs Hex 2.5.1, then
-runs the same four Mix commands with `MIX_ENV=test` on Ubuntu 24.04. To check the floor locally, install
+CI installs Rebar through `setup-beam`, explicitly installs/logs Hex 2.5.1,
+and uses `MIX_ENV=test` on Ubuntu 24.04. Formatting runs in the canonical quality
+job; coverage runs in the canonical test job. The other test jobs run compile
+and test commands without `--cover`; no coverage service or extra dependency is
+needed. The built-in coverage threshold is not lowered.
+
+To check the floor locally, install
 `mise install erlang@25.3.2.21 elixir@1.14.5-otp-25` and replace `mise exec --`
-with `mise exec erlang@25.3.2.21 elixir@1.14.5-otp-25 --` above.
+with `mise exec erlang@25.3.2.21 elixir@1.14.5-otp-25 --`.
+Use `elixir@1.18.4-otp-27 erlang@27.3.4` for the consumer baseline.
 
 When switching OTP versions in an existing checkout, recompile dependency
 artifacts with `MIX_ENV=test mise exec -- mix deps.compile --force` before
@@ -49,24 +58,47 @@ Tests changing application environment must use `async: false` and restore
 every changed key in `on_exit`. A passing offline suite is not proof of a live
 ORCID login or Benchpro deployment.
 
-## Development tools and current limits
+## Quality checks
 
-Credo is development/test-only and bounded to `~> 1.7.19`.
-[ExDoc 0.36.1](https://hex.pm/api/packages/ex_doc/releases/0.36.1) is bounded to
-the last line supporting Elixir 1.14; newer lines require Elixir 1.15. This is a
-compatibility pin, not a claim of upstream backports. Use the canonical
-Elixir 1.18.4/OTP 27.3.4 pair for development and documentation tooling;
-the Elixir 1.14 floor is checked with `MIX_ENV=test`, not documentation builds.
-These tools are not runtime applications. Jason is an explicit runtime dependency;
-the dependency/security contract is described in the README.
+Analysis and documentation tools are development-only, non-runtime dependencies.
+Run them on the canonical pair, not the compatibility floor:
 
-The source still has the unused `allow_private_emails` variable. On the floor,
-Credo also warns about `Map.intersect/2` in its check-author helper. CI uses
-ordinary compilation and tests without suppressing warnings or ignoring failed
-steps. Enable warnings-as-errors only after those warnings are addressed.
-Credo's strict gate, Dialyzer, Sobelow, coverage, documentation/release checks,
-and live sandbox acceptance remain later roadmap work, not passing checks
-implied by this workflow.
+```sh
+export MIX_ENV=dev
+mise exec -- mix deps.get --check-locked
+mise exec -- mix credo --strict
+mise exec -- mix dialyzer
+mise exec -- mix sobelow --private --exit low
+mise exec -- mix docs
+mise exec -- mix hex.build
+```
+
+Dialyzer includes the project's transitive runtime applications. PLTs live in
+`priv/plts/`; CI caches only this directory, keyed by OS, architecture, Elixir,
+OTP, environment, and lockfile. A cache miss builds from scratch. Dependencies,
+build artifacts and the Hex home are not cached. No release job consumes PR
+artifacts; publication remains manual.
+
+Sobelow's threshold is **confidence**, not vulnerability severity. `--exit low`
+fails for every reported confidence level; its default exit behavior would not
+gate CI. `--private` disables update checks. Sobelow complements, but does not
+replace, the OAuth regression tests, Hex advisories or a security review. This
+library has no Phoenix router, so Sobelow's missing-router notice is expected.
+Its generic code-execution checks were exercised with an isolated injected
+finding: the normal scan exited 0 and the injected scan exited 1.
+
+ExDoc stays on the `0.36.x` line compatible with the package's Elixir floor.
+Its older dependencies emit range, bitstring, API-deprecation and inferred-type
+warnings on Elixir 1.20; these are development tooling, not runtime dependencies.
+The floor-compatible locked Plug 1.19.5 also emits `xref`, bitstring and an
+inferred unreachable-clause warning on 1.20. Both older test pairings compile
+without these warnings. Mix's `--warnings-as-errors` gates the project's
+compilation and tests, not dependencies' compilation. No global warning flags,
+ignore files or allowed-failing jobs hide these upstream findings.
+`SOURCE_REF` selects the source revision for generated documentation; CI uses
+its actual commit SHA. Release documentation must use the actual `0.2.5`-style
+tag, not a fabricated `v` prefix. `mix hex.build` builds locally; it does not
+publish. Inspect the tarball and generated links before any release.
 
 CI runs on pushes to `master` and `pull_request`, including fork contributions,
 using a read-only token, no repository secrets, and full action commit pins.
@@ -95,10 +127,21 @@ Dependabot proposes monthly Mix updates in separate development/runtime groups
 GitHub supports Mix version updates, not Mix security-update PRs, so scheduled
 Hex auditing remains necessary.
 
+The locked baseline is authoritative. An unlocked/latest-compatible CI job is
+not enabled: it would test dependency resolution rather than this lockfile.
+Reconsider it after the expanded matrix has a stable hosted history.
+
+The stable merge-check names are `test floor`, `test consumer`, `test current`,
+`quality`, and `audit`. Approved `master` protection requires all five from
+the GitHub Actions app, an up-to-date branch, and applies to administrators.
+Force pushes and deletion are disabled. When changing job names, update
+protection in the same rollout. Until the workflow is pushed, these new checks
+cannot run on GitHub and PRs cannot satisfy the protection rule.
+
 The lockfile uses Plug 1.19.5 to exercise the Elixir 1.14 floor. Published
 requirements also permit patched newer branches; do not collapse the branch-aware
 constraint to a single lower bound that re-admits vulnerable 1.17–1.20 releases.
-When updating, reproduce the login contract after each runtime group, check both
+When updating, reproduce the login contract after each runtime group, check all
 supported pairs, and check a production-only consumer. Applications resolve
 their own dependencies; this repository's lockfile is not distributed as their
 resolution. Re-audit the application before rollout.

@@ -227,35 +227,128 @@ implied by these local results.
 
 ### Request, callback, and errors
 
-- [ ] Correct `authorize_utl` to the supported client option and test the resulting authorization URL. An upstream fallback may mask the typo today.
-- [ ] Make callback/redirect URI handling consistent between authorization and token exchange. Test deployment behind a correctly configured HTTPS reverse proxy and explicit callback overrides; never derive trusted redirect configuration from arbitrary untrusted headers.
-- [ ] Remove the implicit localhost production trap while keeping a documented local-development recipe. Missing required configuration should fail clearly without exposing values.
-- [ ] Preserve the intended `get_token!/2` options structure: headers, HTTP options, and client options are currently obscured by rebinding. Characterize existing callers before changing the public helper contract.
-- [ ] Use `:oauth2_module` consistently for authorization, token exchange, and userinfo retrieval.
-- [ ] Handle provider denial (`error`, `error_description`) distinctly from a missing authorization code. Return Ueberauth failures with sanitized, stable categories.
-- [ ] Use non-raising dependency APIs for expected token-exchange failures where available. Do not turn timeouts, bad/expired codes, revoked tokens, or invalid JSON into unhandled request crashes; do not blanket-rescue programming errors either.
-- [ ] Handle actual OAuth2 success/error tuple shapes for 400, 401, 403, 429, 5xx, transport errors, and malformed bodies. Do not accept redirects or arbitrary `200..399` responses as a valid userinfo document.
-- [ ] Validate the access token and required identity claim at the trust boundary before constructing a successful auth result. Reject empty/wrong-type values; optional profile omissions must remain valid.
-- [ ] Preserve Ueberauth's existing state protection, rather than implement a second mechanism. Locked Ueberauth 0.10.8 generates/checks cookie-backed state and deletes the cookie after a successful callback. Test matching/missing/mismatched state and missing cookies through the public pipeline; calling `handle_callback!/1` alone cannot prove CSRF protection. Separately test that replaying a consumed authorization code cannot authenticate again.
-- [ ] Remove the redundant `client_secret` parameter and duplicate client construction in `OAuth.get/4`. Baseline source tracing confirmed that OAuth2 2.1.0 does **not** serialize that parameter on the ordinary resource GET; this is not a demonstrated wire leak. Capture real outgoing requests to preserve bearer-only userinfo access across upgrades.
-- [ ] Verify token-endpoint authentication against ORCID's advertised `client_secret_post` method. The current code adds body credentials while OAuth2's AuthCode strategy also adds Basic auth. Use the supported provider contract without removing working body authentication on the assumption that generic Basic auth is sufficient.
-- [ ] Keep provider/network errors free of authorization codes, tokens, client secrets, and raw sensitive response bodies. Do not blindly retry authorization-code exchange; codes are one-use credentials.
+- [x] Correct `authorize_utl` to the supported client option and test the resulting authorization URL. An upstream fallback may mask the typo today.
+- [x] Make callback/redirect URI handling consistent between authorization and token exchange. Test deployment behind a correctly configured HTTPS reverse proxy and explicit callback overrides; never derive trusted redirect configuration from arbitrary untrusted headers.
+- [x] Remove the implicit localhost production trap while keeping a documented local-development recipe. Missing required configuration should fail clearly without exposing values.
+- [x] Preserve the intended `get_token!/2` options structure: headers, HTTP options, and client options are currently obscured by rebinding. Characterize existing callers before changing the public helper contract.
+- [x] Use `:oauth2_module` consistently for authorization, token exchange, and userinfo retrieval.
+- [x] Handle provider denial (`error`, `error_description`) distinctly from a missing authorization code. Return Ueberauth failures with sanitized, stable categories.
+- [x] Use non-raising dependency APIs for expected token-exchange failures where available. Do not turn timeouts, bad/expired codes, revoked tokens, or invalid JSON into unhandled request crashes; do not blanket-rescue programming errors either.
+- [x] Handle actual OAuth2 success/error tuple shapes for 400, 401, 403, 429, 5xx, transport errors, and malformed bodies. Do not accept redirects or arbitrary `200..399` responses as a valid userinfo document.
+- [x] Validate the access token and required identity claim at the trust boundary before constructing a successful auth result. Reject empty/wrong-type values; optional profile omissions must remain valid.
+- [x] Preserve Ueberauth's existing state protection, rather than implement a second mechanism. Locked Ueberauth 0.10.8 generates/checks cookie-backed state and deletes the cookie after a successful callback. Test matching/missing/mismatched state and missing cookies through the public pipeline; calling `handle_callback!/1` alone cannot prove CSRF protection. Separately test that replaying a consumed authorization code cannot authenticate again.
+- [x] Remove the redundant `client_secret` parameter and duplicate client construction in `OAuth.get/4`. Baseline source tracing confirmed that OAuth2 2.1.0 does **not** serialize that parameter on the ordinary resource GET; this is not a demonstrated wire leak. Capture real outgoing requests to preserve bearer-only userinfo access across upgrades.
+- [x] Verify token-endpoint authentication against ORCID's advertised `client_secret_post` method. The current code adds body credentials while OAuth2's AuthCode strategy also adds Basic auth. Use the supported provider contract without removing working body authentication on the assumption that generic Basic auth is sufficient.
+- [x] Keep provider/network errors free of authorization codes, tokens, client secrets, and raw sensitive response bodies. Do not blindly retry authorization-code exchange; codes are one-use credentials.
 
 ### Identity, profile, and temporary state
 
-- [ ] Keep ORCID `sub` as the current stable UID source; explicitly define behavior for missing/invalid identity. Consider any alternate `/authenticate` flow separately rather than changing UID lookup implicitly.
-- [ ] Make name mapping nil-safe and tolerant of absent, blank, and malformed optional fields. Define fallback behavior using ORCID's available name claims, not invented profile data.
-- [ ] Review `nickname: user["name"]` against existing consumers before remapping it. An apparently nicer mapping can still be an API break.
-- [ ] Define email behavior explicitly: an email request is not a guarantee of an email response. Never fail login for missing email or use an unverified/private email assumption to link accounts.
-- [ ] Remove the unused `allow_private_emails` variable and misleading documentation/advertised options, if any. Do not implement access to private email just to justify dead code.
-- [ ] Parse granted scopes as OAuth space-delimited values, with a clear empty/missing-scope result. Keep requested scopes distinct from actually granted scopes.
-- [ ] Preserve optional refresh-token and expiration semantics; do not invent expiration or assume a refresh token is always issued.
-- [ ] Clear both temporary private user and token fields on success/failure cleanup. This is distinct from credentials intentionally returned in `Ueberauth.Auth`.
-- [ ] Review token duplication in `extra.raw_info`. Prefer not duplicating secrets, but first check Benchpro's contract and document/version any removal. Warn consumers not to log the complete auth struct even after cleanup.
-- [ ] Tighten configuration errors for missing, nil, blank, wrong-type, and unavailable environment-based credentials. Errors should identify the key, never print its value.
-- [ ] Remove obsolete comments and generator remnants, fix empty module docs and the incorrect UID default documentation, and add useful public API typespecs. Avoid mechanical abstractions or callback renames.
+- [x] Keep ORCID `sub` as the current stable UID source; explicitly define behavior for missing/invalid identity. Consider any alternate `/authenticate` flow separately rather than changing UID lookup implicitly.
+- [x] Make name mapping nil-safe and tolerant of absent, blank, and malformed optional fields. Define fallback behavior using ORCID's available name claims, not invented profile data.
+- [x] Review `nickname: user["name"]` against existing consumers before remapping it. An apparently nicer mapping can still be an API break.
+- [x] Define email behavior explicitly: an email request is not a guarantee of an email response. Never fail login for missing email or use an unverified/private email assumption to link accounts.
+- [x] Remove the unused `allow_private_emails` variable and misleading documentation/advertised options, if any. Do not implement access to private email just to justify dead code.
+- [x] Parse granted scopes as OAuth space-delimited values, with a clear empty/missing-scope result. Keep requested scopes distinct from actually granted scopes.
+- [x] Preserve optional refresh-token and expiration semantics; do not invent expiration or assume a refresh token is always issued.
+- [x] Clear both temporary private user and token fields on success/failure cleanup. This is distinct from credentials intentionally returned in `Ueberauth.Auth`.
+- [x] Review token duplication in `extra.raw_info`. Prefer not duplicating secrets, but first check Benchpro's contract and document/version any removal. Warn consumers not to log the complete auth struct even after cleanup.
+- [x] Tighten configuration errors for missing, nil, blank, wrong-type, and unavailable environment-based credentials. Errors should identify the key, never print its value.
+- [x] Remove obsolete comments and generator remnants, fix empty module docs and the incorrect UID default documentation, and add useful public API typespecs. Avoid mechanical abstractions or callback renames.
 
 **Acceptance:** successful auth retains the agreed consumer-visible contract; every expected provider/network failure produces a controlled failure; optional profile omissions do not crash; state/credential protections are exercised through the real request boundary.
+
+### Phase 3 implementation status (2026-09-18, unreleased)
+
+Phase 2 was committed as `25a1584`. Phase 3 changes are not yet committed or
+released. The README now documents callback configuration, a local-development
+recipe, the custom-module migration, and consumer-visible result/failure behavior.
+
+#### Request and response boundaries
+
+- Fixed the authorization option and made default authorization/token paths
+  relative to `site`, so a sandbox site does not retain a production token URL.
+  Explicit absolute endpoint overrides remain available.
+- Authorization and token exchange use the same effective Ueberauth callback.
+  There is no implicit localhost URI. Direct helpers require an effective
+  explicit redirect; `send_redirect_uri: false` uses the configured client URI.
+  Raw forwarded headers are not consulted by the strategy. Tests cover explicit
+  callbacks despite spoofed forwarding headers and a trusted proxy-normalized
+  connection with a nondefault HTTPS port.
+- The callback uses non-raising token exchange. The helper validates HTTP 200,
+  JSON object shape, access-token/Bearer fields and optional expiry/refresh values
+  before constructing a token. It uses public `OAuth2.Client` request APIs rather
+  than the upstream token helper, which constructs tokens before these checks.
+- [ORCID discovery](https://orcid.org/.well-known/openid-configuration) advertises
+  `client_secret_post`. Token requests now use POST form credentials without
+  duplicate Basic authentication. Userinfo uses bearer authentication and no
+  added client-secret parameter; the redundant client construction is gone.
+- Expected provider/status/transport/JSON failures become controlled, sanitized
+  Ueberauth failures. Denial is distinct from missing code. Redirects, non-200
+  userinfo and non-JSON profile/token bodies cannot authenticate. There are no
+  automatic token retries. Known JSON-parser exceptions and the dependency's
+  malformed-content-type error are handled narrowly; programmer errors propagate.
+  Jason and a configured wrapper serializer are exercised; optional Poison
+  exception handling is implemented, not a claim that Poison was installed/tested.
+- The public bang token API is retained with sanitized exceptions. Its
+  `headers`, `options`, and `client_options` remain top-level and influence the
+  actual request. Credential errors cover missing/nil/blank/wrong-type and legacy
+  environment-based values without reflecting those values.
+
+#### Identity and compatibility decisions
+
+- A nonblank string `sub` remains mandatory; configurable `uid_field` selection
+  is preserved and its selected claim must also be nonblank. No invented ORCID
+  checksum/format restriction or email fallback was introduced.
+- Valid given/family names are trimmed and joined; credit name is the fallback.
+  `info.nickname` retains the credit-name claim consumed by Benchpro. Missing,
+  blank, malformed or Unicode optional names do not crash authentication.
+  `info.email` remains nil, even when raw userinfo includes an email.
+- Granted scopes are whitespace-delimited, with missing/empty values producing
+  `[]`; requested scopes remain unchanged. Optional refresh/expiry values are
+  preserved rather than invented.
+- Cleanup removes both temporary private fields, including on CSRF/provider
+  failure. Raw userinfo and the raw token are deliberately retained in
+  `extra.raw_info` to avoid an unrelated public-result removal. Benchpro's
+  inspected consumer needs raw name claims; no raw-token consumer was identified,
+  but absence in that app is not proof that other consumers do not use it.
+  The README warns that returned auth structs still contain secrets.
+- Custom OAuth modules now implement `authorize_url!/2`, `get_token/2` and `get/4`;
+  all stages use the configured module. No partial-module fallback was added.
+  With explicit user approval, `../benchpro/lib/benchpro/orcid/prompt_login_oauth.ex`
+  gained the non-raising token and userinfo delegates. Its existing authorization
+  customization and real bang API remain; the latter is still used by Benchpro's
+  currently locked 0.2.5. No Benchpro lockfile, configuration, persistence schema,
+  or other source file was changed, and no Benchpro changes were committed.
+
+#### Verification
+
+- Against isolated sources from `25a1584`, the 50 new public-callback regressions
+  fail, exposing the old crashes, accepted invalid data, redirect mismatch and
+  retained temporary credentials. With the fixes, all **71 tests pass** on both
+  Elixir 1.14.5/OTP 25.3.2.21 and Elixir 1.18.4/OTP 27.3.4. Existing successful
+  login, state and native TLS tests remain intact.
+- Clean checkouts on both pairs pass locked dependency fetch, compilation and
+  formatting. Library source compilation is warning-free. The floor still emits
+  the known Credo check-author helper warning; it is not hidden.
+- Fresh production-only consumers on both pairs compile the **actual approved
+  Benchpro wrapper** against this library and complete the real Ueberauth flow
+  over native Httpc to a loopback provider. Checks cover encoded form-only
+  credentials, `prompt=login`, matching callback, minimal userinfo, granted scopes,
+  cleanup, and controlled rejection of a consumed code. A top-level token HTTP
+  timeout of 80 ms returns at 81 ms on both pairs. Credo/ExDoc are absent.
+- Canonical `mix test --cover` passes: **98.05% total** (strategy 97.01%, OAuth
+  helper 98.85%). No coverage threshold was lowered or new coverage dependency
+  added. This measures exercised code, not security completeness.
+- Hex 2.5.1 audit remains clean. ExDoc builds the new public API documentation;
+  existing documentation-tool dependency deprecations remain visible. This is
+  not a documentation-link/package-release audit. Benchpro wrapper formatting
+  also passes.
+
+The loopback consumer is not the running Benchpro application or its database.
+Live ORCID consent, actual deployment/proxy configuration, application persistence,
+hosted CI and rollout remain unverified. Normal tests require no ORCID account
+or real credentials. Phase 4 quality-tool/CI gates and later release acceptance
+remain separate work.
 
 ## Required behavioral test inventory
 
@@ -287,24 +380,89 @@ Keep a separate, explicitly invoked ORCID sandbox smoke procedure. Normal CI mus
 | ExUnit | `mix test`; coverage on one canonical pairing. | Every PR. |
 | Credo | Upgrade existing dependency; run `mix credo --strict` after fixing actionable findings. No giant configuration file unless needed. | One canonical pairing. |
 | Dialyzer | Add Dialyxir as a development-only, non-runtime dependency; run `mix dialyzer`. Fix types/contracts, not blanket ignore files. | One canonical pairing; cache PLTs by OS/OTP/Elixir/dependencies. |
-| Sobelow | Add and evaluate it on this library. It primarily targets Phoenix applications but also detects broader unsafe Elixir patterns; it is not an OAuth audit. | Explicitly configure failure severity: default invocation does not fail the build. Review medium/low findings too; retain a permanent gate only if relevant, with narrow explained exclusions. |
+| Sobelow | Evaluated and retained for generic unsafe Elixir patterns; it is not an OAuth audit and this library has no Phoenix router. | `mix sobelow --private --exit low` fails on every confidence level (confidence is not severity); no exclusions. |
 | Dependency audit | Native Hex advisory/retirement checks; review outdated packages separately. | PRs plus scheduled checks to catch newly published advisories. |
 | Documentation/package | Build ExDoc and `mix hex.build`; inspect links and package contents. | Canonical pairing and release preparation. |
 
 ### CI hosting and safety
 
-- [ ] Use GitHub Actions on standard GitHub-hosted Linux runners for this public GitHub repository. Verify current billing rules before enabling paid runner classes or changing visibility.
-- [ ] Test the supported minimum and a current stable Elixir/OTP pairing; include Benchpro's pair if neither covers it. Pin explicit versions and use a valid compatibility table when choosing them.
-- [ ] Run analysis/docs on one pairing, not on the whole matrix. Avoid macOS/Windows jobs unless a platform-specific support need emerges.
-- [ ] Start without caches if builds are already quick. If useful, cache dependencies/builds by OS/architecture, Elixir, OTP, environment, and lockfile; cache Dialyzer PLTs separately. Never cache secrets or the entire Hex home; a cold build must work, and release jobs must not trust PR-built artifacts.
-- [ ] Use read-only default token permissions, pinned action revisions, timeouts, and cancellation of superseded PR builds. Keep third-party actions minimal and update pins deliberately.
-- [ ] Run untrusted contributions with `pull_request`, without secrets. Never run PR code in a privileged `pull_request_target` job. Keep publishing separate from PR validation.
-- [ ] Add a scheduled audit and dependency update review. Consider an unlocked/latest-compatible dependency job only after the locked baseline is stable; it answers a different question from reproducible CI.
-- [ ] Require the small stable check set before merging. Keep manual release approval; release automation can come later.
+- [x] Use GitHub Actions on standard GitHub-hosted Linux runners for this public GitHub repository. Verify current billing rules before enabling paid runner classes or changing visibility.
+- [x] Test the supported minimum and a current stable Elixir/OTP pairing; include Benchpro's pair if neither covers it. Pin explicit versions and use a valid compatibility table when choosing them.
+- [x] Run analysis/docs on one pairing, not on the whole matrix. Avoid macOS/Windows jobs unless a platform-specific support need emerges.
+- [x] Start without caches if builds are already quick. If useful, cache dependencies/builds by OS/architecture, Elixir, OTP, environment, and lockfile; cache Dialyzer PLTs separately. Never cache secrets or the entire Hex home; a cold build must work, and release jobs must not trust PR-built artifacts.
+- [x] Use read-only default token permissions, pinned action revisions, timeouts, and cancellation of superseded PR builds. Keep third-party actions minimal and update pins deliberately.
+- [x] Run untrusted contributions with `pull_request`, without secrets. Never run PR code in a privileged `pull_request_target` job. Keep publishing separate from PR validation.
+- [x] Add a scheduled audit and dependency update review. Consider an unlocked/latest-compatible dependency job only after the locked baseline is stable; it answers a different question from reproducible CI.
+- [x] Require the small stable check set before merging. Keep manual release approval; release automation can come later.
 
 **Free versus open source:** [standard GitHub-hosted runners are free for public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions); larger runners are charged, and storage/cache allowances still matter. GitHub Actions' hosted service is not a fully open-source CI system, although its [runner is MIT-licensed](https://github.com/actions/runner/blob/main/LICENSE). If an open-source control plane is a requirement, [Woodpecker](https://woodpecker-ci.org/docs/intro) is an Apache-2.0 alternative; [Forgejo Actions](https://forgejo.org/docs/latest/user/actions/overview/) is another route on a Forgejo instance. Neither guarantees free hosted compute. Use an existing instance rather than operate another CI stack just for this library.
 
 **Acceptance:** all documented local checks can be reproduced in CI; fork PRs work without secrets; the supported matrix is honest; no permanently allowed-failing quality job or unexplained warning suppression remains.
+
+### Phase 4 implementation status (2026-09-18, unreleased)
+
+- Babysitter run `01M2TWATNT7JV22DRJH421FBYG`: the user approved CLI-driven
+  execution without Pi session binding and explicitly approved merge protection.
+  No session ID was invented; nothing was committed, pushed or released.
+- Added dev-only, non-runtime Dialyxir 1.4.8 and Sobelow 0.15.0; moved Credo
+  1.7.19 to dev-only. Only Dialyxir, Erlex 0.2.9 and Sobelow were added to the
+  lockfile. Runtime requirements/resolutions and Benchpro files are unchanged.
+- [Elixir 1.20.4](https://github.com/elixir-lang/elixir/releases/tag/v1.20.4)
+  is the current stable release; the official compatibility table supports
+  OTP 27. Canonical development/analysis now uses 1.20.4-otp-27 / OTP 27.3.4.
+  Tests retain 1.14.5-otp-25 / 25.3.2.21 and 1.18.4-otp-27 / 27.3.4.
+  Benchpro's declared 1.18/OTP 28 pair remains unsupported, not a CI promise.
+- All three test jobs enforce compiler/test warnings as errors. Coverage runs
+  on the canonical test job; formatter, strict Credo, Dialyzer, Sobelow, docs and
+  package build run once in the canonical quality job. Six Credo findings were
+  fixed with aliases, ordering and flatter token validation, preserving behavior.
+- Public visibility and current GitHub standard-runner billing were confirmed.
+  CI stays on Ubuntu 24.04 with pinned actions, read-only permissions, no
+  secrets/privileged PR trigger, bounded timeouts and cancellation. Only PLTs
+  are cached, keyed by OS/architecture/Elixir/OTP/environment/lockfile, with no
+  restore fallback. No dependency/build/Hex-home caches or release artifacts.
+- Weekly auditing and monthly grouped Dependabot updates remain. Reviewed
+  outdated dependencies separately; no unlocked job before stable hosted
+  history. Older doc tooling and the floor-compatible Plug lock are retained.
+- GitHub API confirmed `master` requires `test floor`, `test consumer`,
+  `test current`, `quality`, and `audit` from GitHub Actions app 15368, with
+  strict/up-to-date checks and administrator enforcement; force pushes/deletion
+  are disabled. **The workflow must be pushed before PRs can satisfy these
+  checks.** Publication remains manual.
+- Corrected ExDoc source refs: actual `0.2.5`-style release tag by default,
+  `SOURCE_REF` override for CI's commit SHA. Packaged the existing contributor
+  guide and removed the nonexistent Changelog metadata link. Broader Phase 5
+  setup-guide/changelog/badge/release work remains separate.
+
+Verification:
+
+- Fresh isolated floor and consumer checkouts resolved the lockfile, compiled
+  with warnings-as-errors and passed **71 tests each**, also rerun after the
+  source refinement. Current canonical: **71 passed, 98.06% coverage**.
+  No lowered threshold, new framework or permanent CI-plumbing tests.
+- Strict Credo: zero issues across seven files. Dialyzer: cold PLTs built in
+  about 53 seconds; zero errors/skips, including all runtime transitive apps;
+  warm rerun also passed. No analysis configuration/ignore files needed.
+- Sobelow: zero findings, exit 0. An isolated injected `Code.eval_string(input)`
+  produced a low-confidence RCE finding and exit 1, proving gate relevance.
+  The expected missing-router notice is documented, not suppressed.
+- Hex audit: no retirement/security advisories. `hex.outdated --all` returned
+  its expected nonzero status for available updates; it is a review command,
+  not a required freshness gate.
+- ExDoc and Hex build passed. All ten generated HTML pages had valid local
+  link targets/anchors; source links honored `SOURCE_REF=updates`. Remote links
+  cannot show unpushed changes yet. Inspected package contents/metadata:
+  intended source/docs only, no tests/PLTs/build/dependency/orchestration files,
+  and no development-tool runtime requirements.
+- Checksum-verified actionlint 1.7.12 accepted the workflow; upstream APIs
+  confirmed the action pins. **Local/static evidence is not a hosted CI run
+  or a fork-PR execution.** No real ORCID or Benchpro app/database test is implied.
+- Reviewed Elixir 1.20 dependency warnings: Plug 1.19.5's deprecated `xref`/
+  bitstring syntax and one inferred unreachable clause; older ExDoc/Makeup/
+  NimbleParsec deprecation/type warnings. Project source/tests are warning-free.
+  Mix's project warnings-as-errors flag does not promote dependency warnings;
+  no global suppression, dependency patch or allowed-failing job was added.
+
 
 ## Phase 5 — Documentation, badges, and release
 
@@ -318,7 +476,7 @@ Keep a separate, explicitly invoked ORCID sandbox smoke procedure. Normal CI mus
 - [ ] Add troubleshooting for state/cookie failures, redirect mismatches, consent denial, missing profile data, configuration errors, and upstream outages. Never request users' secrets in bug reports.
 - [ ] Update `CONTRIBUTING.md` with exact setup/check commands, supported runtime policy, isolated test rules, and sandbox testing instructions.
 - [ ] Add a changelog and security-reporting policy; include the appropriate documentation files in the Hex package and ExDoc extras. Avoid creating a large governance-document collection for a tiny library.
-- [ ] Fix ExDoc source refs to actual tags. Existing tags are `0.2.5`-style, not `v0.2.5`; the current `"#v{@version}"` string is not interpolation.
+- [x] Fix ExDoc source refs to actual tags. Existing tags are `0.2.5`-style, not `v0.2.5`; the current `"#v{@version}"` string is not interpolation. Completed during Phase 4 package/link checks; CI uses its actual commit SHA.
 - [ ] Verify generated source links, README links, module docs, and the advertised changelog URL before publishing.
 
 ### Badges worth adding

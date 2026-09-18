@@ -4,6 +4,8 @@ defmodule UeberauthOrcidTest do
   import Plug.Conn
   import Plug.Test
 
+  alias Ueberauth.Strategy.Orcid.OAuth
+
   @callback_url "https://client.example/auth/orcid/callback"
 
   setup do
@@ -174,7 +176,7 @@ defmodule UeberauthOrcidTest do
       end)
 
     assert {:error, %OAuth2.Error{reason: :econnrefused}} =
-             Ueberauth.Strategy.Orcid.OAuth.get(
+             OAuth.get(
                %OAuth2.AccessToken{access_token: "test-access-token"},
                "https://localhost:#{port}/oauth/userinfo"
              )

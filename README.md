@@ -52,6 +52,99 @@ remaining on Elixir 1.14 must select a compatible Plug branch, for example
 Elixir 1.15; an unlocked Hex resolution does not automatically select the older
 branch for you. Audit the application's own lockfile, not just this repository's.
 
+### Callback configuration and local development
+
+There is no implicit localhost callback. Set the registered callback explicitly
+in `config/runtime.exs`:
+
+```elixir
+callback_url = System.fetch_env!("ORCID_REDIRECT_URI")
+
+config :ueberauth, Ueberauth,
+  providers: [
+    orcid: {Ueberauth.Strategy.Orcid, [callback_url: callback_url]}
+  ]
+
+config :ueberauth, Ueberauth.Strategy.Orcid.OAuth,
+  client_id: System.fetch_env!("ORCID_CLIENT_ID"),
+  client_secret: System.fetch_env!("ORCID_CLIENT_SECRET"),
+  redirect_uri: callback_url
+```
+
+For local development, register your development callback with ORCID and set
+`ORCID_REDIRECT_URI=http://localhost:4000/auth/orcid/callback` for an app listening
+on port 4000. To use the sandbox, use separate sandbox credentials and add
+`site: "https://sandbox.orcid.org"` to the OAuth configuration. Relative
+authorization/token endpoints follow `site`; explicit absolute endpoint
+overrides remain supported.
+
+By default the strategy sends Ueberauth's effective callback URI in both the
+authorization request and token exchange. An explicit provider `callback_url`
+takes precedence over the client's `redirect_uri`. Without that provider option,
+Ueberauth derives the URL from the connection: validate the host and normalize
+scheme/port only behind a trusted reverse proxy before Ueberauth runs. The
+strategy does not trust raw forwarded headers. With `send_redirect_uri: false`,
+the client's explicitly configured URI is used for both exchanges.
+
+Direct OAuth helper calls also require an explicit effective `redirect_uri`.
+Missing/blank/invalid credentials raise `ArgumentError` identifying the key,
+not its value; legacy `{:system, "ENV_NAME"}` credential configuration still works.
+
+### Custom OAuth module migration
+
+Every configured `oauth2_module` must now implement:
+
+- `authorize_url!(params, client_options)` returning the authorization URL.
+- `get_token(params, options)` returning `{:ok, %OAuth2.AccessToken{}}` or
+  `{:error, reason}`.
+- `get(token, url, headers, options)` returning OAuth2 response/error tuples.
+
+Previous partial wrappers need the non-raising token and userinfo operations.
+For a wrapper already delegating to `Ueberauth.Strategy.Orcid.OAuth` through
+`@delegate`, add:
+
+```elixir
+def get_token(params, options), do: @delegate.get_token(params, options)
+def get(token, url, headers, options), do: @delegate.get(token, url, headers, options)
+```
+
+The default helper's public `get_token!/2` remains available for direct callers:
+it returns the token or raises a sanitized `OAuth2.Error`. Both token helpers
+accept top-level `headers:`, `options:` (HTTP options), and `client_options:`.
+The callback uses the non-raising operation; partial-module fallback is not
+provided. Migrate the wrapper before adopting the next release.
+
+### Authentication result and failure contract
+
+Successful userinfo must be an HTTP 200 JSON object with a nonblank `sub`.
+`uid_field` still defaults to `:sub`; a configured alternate claim must also be
+a nonblank string. No email or optional name is used as an identity fallback.
+`info.name` joins valid, trimmed given/family names, then falls back to the
+credit-name claim `name`; `info.nickname` keeps that credit name. With no valid
+name, both remain nil. `info.email` remains nil even if raw userinfo includes
+an email; do not infer verified/private-email access or use it for account linking.
+
+`credentials.scopes` contains whitespace-separated **granted** scopes, or `[]`
+when omitted/empty. It does not copy the requested scopes; commas are not scope
+delimiters. Refresh tokens and expiration remain optional, without invented
+values. Both temporary connection fields are removed on callback cleanup.
+`extra.raw_info.user` and `extra.raw_info.token` remain available for compatibility:
+cleanup does **not** remove secrets from the returned auth struct.
+
+Expected provider/transport failures assign `ueberauth_failure`, never a
+successful auth result. Strategy categories are `access_denied`, `provider_error`,
+`missing_code`, `token_exchange_failed`, `invalid_token`, `userinfo_failed`, and
+`invalid_identity`; Ueberauth retains its own `csrf_attack` protection.
+Provider descriptions, response bodies, and credentials are not copied into
+these failures, and authorization-code exchange is not retried automatically.
+Known Jason/Poison parser errors are normalized; unexpected serializer/programming
+errors still propagate rather than being hidden.
+
+Token requests use form-only
+[`client_secret_post`](https://orcid.org/.well-known/openid-configuration),
+not redundant Basic authentication. Userinfo uses the bearer token, without
+adding the client secret to resource parameters.
+
 ### HTTP security and timeouts
 
 The default `Tesla.Adapter.Httpc` transport verifies the certificate chain and

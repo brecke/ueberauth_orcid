@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   test:
-    name: Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }}
+    name: test ${{ matrix.name }}
     if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -28,9 +28,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - elixir: '1.14.5-otp-25'
+          - name: floor
+            elixir: '1.14.5-otp-25'
             otp: '25.3.2.21'
-          - elixir: '1.18.4-otp-27'
+          - name: consumer
+            elixir: '1.18.4-otp-27'
+            otp: '27.3.4'
+          - name: current
+            elixir: '1.20.4-otp-27'
             otp: '27.3.4'
     env:
       MIX_ENV: test
@@ -49,21 +54,61 @@ jobs:
           mix local.hex "$HEX_VERSION" --force
           mix hex.info
       - run: mix deps.get --check-locked
-      - run: mix compile
+      - run: mix compile --warnings-as-errors
+      - if: matrix.name != 'current'
+        run: mix test --warnings-as-errors
+      - if: matrix.name == 'current'
+        run: mix test --warnings-as-errors --cover
+
+  quality:
+    name: quality
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      MIX_ENV: dev
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
+        id: beam
+        with:
+          elixir-version: '1.20.4-otp-27'
+          otp-version: '27.3.4'
+          version-type: strict
+          install-hex: false
+      - name: Install and log Hex
+        run: |
+          mix local.hex "$HEX_VERSION" --force
+          mix hex.info
+      - run: mix deps.get --check-locked
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: priv/plts
+          key: plts-${{ runner.os }}-${{ runner.arch }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ env.MIX_ENV }}-${{ hashFiles('mix.lock') }}
       - run: mix format --check-formatted
-      - run: mix test
+      - run: mix credo --strict
+      - run: mix dialyzer
+      - run: mix sobelow --private --exit low
+      - run: mix docs
+        env:
+          SOURCE_REF: ${{ github.sha }}
+      - run: mix hex.build
 
   audit:
-    name: Hex security and retirement audit
+    name: audit
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      MIX_ENV: dev
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
-          elixir-version: '1.18.4-otp-27'
+          elixir-version: '1.20.4-otp-27'
           otp-version: '27.3.4'
           version-type: strict
           install-hex: false
