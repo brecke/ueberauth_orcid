@@ -12,4 +12,12 @@ Security reports are assessed against the latest published release. Fixes target
 
 ## Dependency monitoring
 
-CI checks locked dependencies for Hex security advisories and retired releases on pull requests, pushes to `master`, and weekly. Dependabot proposes monthly version updates for Mix and GitHub Actions for maintainer review, without auto-merge. Mix security-update pull requests are not supported by GitHub; the scheduled audit is the advisory-monitoring path. Applications must audit their own dependency resolutions too.
+The checked-in CI configuration audits locked dependencies for Hex security
+advisories and retired releases on pull requests, pushes to `master`, and weekly.
+Dependabot configuration proposes monthly Mix and GitHub Actions version updates
+for maintainer review, without auto-merge. As of 2026-09-18 these configurations
+are not on the default branch; hosted monitoring is not yet active or verified.
+Until activation, maintainers must run the documented audit manually each week
+and review failure notifications after activation. Mix security-update pull
+requests are not supported by GitHub; scheduled Hex auditing is the intended
+advisory-monitoring path. Applications must audit their own resolutions too.

@@ -1,8 +1,20 @@
 # Contributing to Ueberauth Orcid
 
+## Release status
+
+`0.3.0` is an **unreleased candidate**, not an available Hex release. The
+workflow and Dependabot configuration below exist in this checkout but are
+not on GitHub's default branch as of 2026-09-18. Hosted checks, live sandbox
+login, Benchpro staging acceptance, the `0.3.0` tag and publication are
+**NOT passed**. Commands below are procedures, not evidence they were run.
+
 ## Toolchains and quick start
 
-The library retains its Elixir `~> 1.14` requirement. CI checks these explicit
+The library retains its Elixir `~> 1.14` requirement; the default Httpc TLS
+implementation requires OTP **25.1 or later**
+([native TLS API](https://www.erlang.org/doc/apps/inets/httpc.html#ssl_verify_host_options/1)).
+The checked-in CI workflow
+defines these explicit
 [compatible Elixir/OTP pairs](https://hexdocs.pm/elixir/compatibility-and-deprecations.html#between-elixir-and-erlang-otp),
 not every combination:
 
@@ -40,15 +52,26 @@ job; coverage runs in the canonical test job. The other test jobs run compile
 and test commands without `--cover`; no coverage service or extra dependency is
 needed. The built-in coverage threshold is not lowered.
 
-To check the floor locally, install
-`mise install erlang@25.3.2.21 elixir@1.14.5-otp-25` and replace `mise exec --`
-with `mise exec erlang@25.3.2.21 elixir@1.14.5-otp-25 --`.
-Use `elixir@1.18.4-otp-27 erlang@27.3.4` for the consumer baseline.
+Use separate clean source directories for each matrix pair, with no copied
+`_build`, `deps`, or `priv/plts` artifacts. Never share compiled dependencies
+between OTP versions. From the respective clean source roots:
 
-When switching OTP versions in an existing checkout, recompile dependency
-artifacts with `MIX_ENV=test mise exec -- mix deps.compile --force` before
-running the checks. Old BEAM files from a different OTP version can fail to
-load even when the source is compatible. CI starts from a fresh checkout.
+```sh
+mise install erlang@25.3.2.21 elixir@1.14.5-otp-25
+MIX_ENV=test mise exec erlang@25.3.2.21 elixir@1.14.5-otp-25 -- mix deps.get --check-locked
+MIX_ENV=test mise exec erlang@25.3.2.21 elixir@1.14.5-otp-25 -- mix compile --warnings-as-errors
+MIX_ENV=test mise exec erlang@25.3.2.21 elixir@1.14.5-otp-25 -- mix test --warnings-as-errors
+```
+
+```sh
+mise install erlang@27.3.4 elixir@1.18.4-otp-27
+MIX_ENV=test mise exec erlang@27.3.4 elixir@1.18.4-otp-27 -- mix deps.get --check-locked
+MIX_ENV=test mise exec erlang@27.3.4 elixir@1.18.4-otp-27 -- mix compile --warnings-as-errors
+MIX_ENV=test mise exec erlang@27.3.4 elixir@1.18.4-otp-27 -- mix test --warnings-as-errors
+```
+
+Install the pinned Hex/Rebar as in quick start under each selected toolchain.
+Use the quick-start commands for the canonical pair.
 
 Tests use synthetic identities and the installed HTTP client's test adapter.
 The TLS regression uses a loopback-only server and ephemeral certificates
@@ -96,9 +119,11 @@ without these warnings. Mix's `--warnings-as-errors` gates the project's
 compilation and tests, not dependencies' compilation. No global warning flags,
 ignore files or allowed-failing jobs hide these upstream findings.
 `SOURCE_REF` selects the source revision for generated documentation; CI uses
-its actual commit SHA. Release documentation must use the actual `0.2.5`-style
-tag, not a fabricated `v` prefix. `mix hex.build` builds locally; it does not
-publish. Inspect the tarball and generated links before any release.
+its actual commit SHA. Release documentation must use the actual `0.3.0`
+tag, not a fabricated `v` prefix. That tag does not exist yet: use a real
+commit SHA for preview links and do not treat the default version-based
+source links as validated until the release tag is public. `mix hex.build`
+builds locally; it does not publish.
 
 CI runs on pushes to `master` and `pull_request`, including fork contributions,
 using a read-only token, no repository secrets, and full action commit pins.
@@ -145,6 +170,187 @@ When updating, reproduce the login contract after each runtime group, check all
 supported pairs, and check a production-only consumer. Applications resolve
 their own dependencies; this repository's lockfile is not distributed as their
 resolution. Re-audit the application before rollout.
+
+Review advisory notifications weekly and investigate failures promptly; review
+the monthly update PRs rather than auto-merging. At least quarterly, triage
+open issues, upstream deprecations and supported runtime pairs. Before every
+authentication-affecting release, repeat the sandbox and staging protocol below.
+
+## Manual acceptance: sandbox, then Benchpro staging
+
+This requires a maintainer's explicit approval, sandbox credentials, consenting
+test accounts and authorized access to staging. Missing access is a blocked
+check, never a pass. Use the [ORCID sandbox](https://info.orcid.org/documentation/integration-guide/sandbox-testing-server/)
+and the README's sandbox configuration; sandbox and production credentials,
+hosts and records are separate. Register the exact callback, keep HTTPS/TLS
+verification enabled, and keep `config :oauth2, debug: false`. Do not put
+credentials in commands, tickets or screenshots.
+
+Record the candidate source SHA, package checksum, runtime pair, callback
+origin/path, requested/granted scope names, test time and pass/fail outcomes.
+Use synthetic account labels; never attach codes, state cookies, tokens,
+client secrets, full callbacks, auth structs or provider response bodies.
+
+1. Start login through the application's Ueberauth request route, not a
+   handcrafted provider URL. Complete consent and check that the callback
+   authenticates the intended test account. The UID must remain the bare
+   ORCID subject (not an ORCID URL, email or display name).
+2. Verify the registered callback equals both the authorization and token
+   exchange callback. Keep the default `openid email profile` scope unchanged;
+   a request's `scope` overrides it. Inspect granted scopes separately: absence
+   means `[]`, not the requested permissions.
+3. Deny consent. Expect a controlled failure, no authenticated session and no
+   account/token writes. Repeat with a fresh flow and missing/mismatched state
+   or missing state cookie: rejection must occur before token exchange.
+   Replay a consumed callback: it must not authenticate again.
+4. Use a minimal/private sandbox profile. Missing names must not crash;
+   `info.name`, `info.nickname` and `info.email` may be nil. Email remains
+   unpopulated by this strategy; application email collection is separate.
+   If a live record cannot exercise a case, record it as unexercised and use
+   the deterministic regression separately, not as a claimed live pass.
+5. Check application logs, errors and telemetry through approved redacted
+   views. Only safe failures should be emitted. Temporary `:orcid_user` and
+   `:orcid_token` fields must be cleaned; successful credentials and
+   `extra.raw_info.token` intentionally still contain secrets. Never log them.
+
+Then repeat in authorized **Benchpro staging**, on the exact candidate artifact:
+
+- Existing account: same stored UID and account ID, no duplicate account or
+  identity, expected token rotation and granted-scope persistence.
+- Fresh test account: complete the application's registration/email flow,
+  sign out and back in, and verify only one account/identity exists.
+- Denial and invalid state: no account creation, session or token mutation.
+- Missing name/public email: existing users still log in; new users follow the
+  pending/manual-email flow or the configured beta/waitlist policy, not an
+  exception or accidental duplicate. Confirm optional refresh-token handling
+  against Benchpro's own persistence constraints.
+
+## Benchpro source baseline and rollback
+
+Read-only snapshot on 2026-09-18, **not deployment evidence**:
+
+| Source in the sibling `../benchpro` checkout | Observed baseline |
+| --- | --- |
+| `mix.exs`, `mix.lock` | Requirement `~>0.2.5`; locks `ueberauth_orcid 0.2.5`, Ueberauth 0.10.8, OAuth2 2.1.1, Jason 1.4.5, Plug 1.20.3, Tesla 1.20.0. |
+| `.tool-versions` | Elixir `1.18.4-otp-28` / OTP `28.1`, an unsupported pairing; actual serving runtime unknown. |
+| `fly.staging.toml` | App `benchpro-web-staging`, base URL `https://benchpro-web-staging.fly.dev`, release command `/app/bin/migrate`; no pinned release image. |
+| `config/runtime.exs` | Provider callback and OAuth `redirect_uri` share `ORCID_REDIRECT_URI`, defaulting to the base URL plus `/auth/orcid/callback`. Staging requires the canonical HTTPS callback. Default scope is `openid email profile`; member mode adds `/read-limited`. Actual overrides/registration are unverified. |
+| `lib/benchpro/orcid/prompt_login_oauth.ex` | Current source adds `prompt=login` and exports the required `authorize_url!/2`, nonraising `get_token/2`, and `get/4` delegates. Also retains its bang helper. Source readiness is not proof that this wrapper is deployed. |
+| `lib/benchpro_web/controllers/user_session_controller.ex` | Consumes UID, credentials/scopes and raw user/name fields; separately fetches public email and handles missing email. Failure telemetry inspects errors, so sanitization is important. |
+
+Exact `ueberauth_orcid 0.2.5` Hex checksums from that lock entry
+([Hex lock field definitions](https://github.com/hexpm/hex/blob/v2.5.1/lib/hex/utils.ex)):
+
+```text
+inner: aa68c722fe6a0034f057c2adaca687529e5581c5707cf2282b026f3ff18d31fd
+outer: 4e06d4ec54f7201ff320dfb1bbb714dd75b14befb324eb979d7dda08dc4699dd
+complete mix.lock SHA-256:
+1a80a217fdd603b4f7c2517200bd17ac48a239ca1e176820ce405eb6ebfd16ad
+```
+
+The whole-file digest was obtained with `shasum -a 256 ../benchpro/mix.lock`;
+it identifies this source snapshot, not a deployed lockfile. **Before deployment**,
+record the actual current release/image digest, complete old lockfile, original
+dependency requirement, configuration revision/secret-version references (not
+secret values), and previously tested Elixir/OTP pair. The current staging
+image and serving runtime are unknown and require recording.
+
+Rollback should redeploy the recorded original release image with its compatible
+configuration, subject to explicit operator approval and schema compatibility.
+If rebuilding is unavoidable, restore the **entire** saved lockfile and original
+dependency requirement in a separate rollback checkout; use the previously
+tested runtime pair. Restoring only the `ueberauth_orcid` lock entry can leave
+an untested transitive resolution. Never reset the whole working tree, overwrite
+unrelated work, or blindly reverse database migrations. Fly's configured
+release command runs migrations: the operator must review that separately.
+Repeat existing-account, denial and duplicate-account checks after rollback.
+
+Downgrading to 0.2.5 restores known authentication/error-handling weaknesses and
+can restore insecure default Httpc TLS behavior on older OTP. Benchpro's source
+lock already has patched Plug/Tesla; that does not fix old strategy behavior.
+Treat rollback as a time-limited, explicitly accepted security risk; prefer a
+fixed forward release when feasible.
+
+## Manual release checklist
+
+`0.3.0`, rather than a 0.2.x patch, signals the breaking full custom-OAuth
+interface, explicit callback/configuration requirements and effective OTP
+floor. See [CHANGELOG.md](CHANGELOG.md). There is no automatic release job.
+
+- [ ] Review a clean candidate source snapshot and its complete diff; exclude
+  secrets, build artifacts and unrelated consumer changes. Run the three
+  isolated matrix pairs, canonical quality commands and Hex audit above.
+  Check hosted results for the exact reviewed SHA after the workflow reaches
+  GitHub; all five required checks must pass there, not only locally.
+- [ ] Inspect ExDoc, every example and package contents/metadata. Build the
+  actual tarball and install its extracted contents in a fresh production-only
+  consumer, not a path pointing at the working source. For example, from the
+  candidate repository root on the canonical pair:
+
+  ```sh
+  MIX_ENV=dev mise exec -- mix hex.build
+  shasum -a 256 ueberauth_orcid-0.3.0.tar
+  ```
+
+  Extract and inspect that exact tarball, then create a fresh consumer:
+
+  ```sh
+  release_check=$(mktemp -d)
+  mkdir "$release_check/archive" "$release_check/package"
+  tar -xf ueberauth_orcid-0.3.0.tar -C "$release_check/archive"
+  tar -xzf "$release_check/archive/contents.tar.gz" -C "$release_check/package"
+  export ORCID_PACKAGE_PATH="$release_check/package"
+  mise exec -- mix new "$release_check/orcid_release_consumer"
+  ```
+
+  In the generated consumer's `mix.exs`, make its `deps/0` return exactly
+  `[{:ueberauth_orcid, path: System.fetch_env!("ORCID_PACKAGE_PATH")}]`.
+  Continue in that shell from the consumer root (not the package source):
+
+  ```sh
+  cd "$release_check/orcid_release_consumer"
+  ```
+
+  ```sh
+  MIX_ENV=prod mise exec erlang@27.3.4 elixir@1.20.4-otp-27 -- mix deps.get
+  MIX_ENV=prod mise exec erlang@27.3.4 elixir@1.20.4-otp-27 -- mix compile --warnings-as-errors
+  MIX_ENV=prod mise exec erlang@27.3.4 elixir@1.20.4-otp-27 -- mix hex.audit
+  MIX_ENV=prod mise exec erlang@27.3.4 elixir@1.20.4-otp-27 -- mix run -e 'json = Ueberauth.json_library(); %{"sub" => "0000-0002-1825-0097"} = json.decode!(~s({"sub":"0000-0002-1825-0097"})); false = Code.ensure_loaded?(Credo); false = Code.ensure_loaded?(ExDoc)'
+  ```
+
+  Also exercise the documented Ueberauth flow with the actual consumer wrapper
+  and a synthetic provider, checking success and controlled failure. Repeat
+  production consumption on the floor in a separate clean consumer using its
+  supported pair and compatible dependency resolution. The JSON smoke alone
+  is not authentication acceptance.
+- [ ] Obtain and record sandbox and staging acceptance above, including the
+  rollback record. Missing credentials or access leaves this unchecked.
+- [ ] Obtain explicit maintainer authorization for commit, push, tag and
+  publication. Finalize the release date/changelog only then, commit the
+  approved source, and create/push the exact `0.3.0` tag pointing to that
+  commit (no `v` prefix). Confirm the tag exists publicly.
+- [ ] From a clean checkout of that tag, repeat local package/quality checks
+  and rebuild/review docs with `SOURCE_REF=0.3.0`. With authorized Hex
+  credentials, publish manually, preserving the confirmation prompt:
+
+  ```sh
+  SOURCE_REF=0.3.0 MIX_ENV=dev mise exec -- mix docs
+  SOURCE_REF=0.3.0 MIX_ENV=dev mise exec -- mix hex.build
+  SOURCE_REF=0.3.0 MIX_ENV=dev mise exec -- mix hex.publish
+  ```
+
+  [Hex publishing](https://hexdocs.pm/hex/Mix.Tasks.Hex.Publish.html) publishes
+  package and docs; `hex.build` alone does not. Do not publish from PR
+  artifacts or expose publishing credentials to untrusted code.
+- [ ] Verify `https://hex.pm/packages/ueberauth_orcid/0.3.0`,
+  `https://hexdocs.pm/ueberauth_orcid/0.3.0/`, the GitHub tag/source links and
+  README badge destinations. In another fresh production consumer, replace
+  the path dependency with `{:ueberauth_orcid, "~> 0.3.0"}`, fetch, compile,
+  audit and repeat the smoke. That Hex requirement is **not usable before
+  publication**. Add a CI badge only once the hosted workflow actually exists.
+
+Record evidence and approval per checkbox. Local documentation preparation
+does not authorize deployment or publication and does not complete these gates.
 
 ## Pull Requests Welcome
 

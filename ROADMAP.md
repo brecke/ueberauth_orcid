@@ -271,9 +271,11 @@ recipe, the custom-module migration, and consumer-visible result/failure behavio
 - Authorization and token exchange use the same effective Ueberauth callback.
   There is no implicit localhost URI. Direct helpers require an effective
   explicit redirect; `send_redirect_uri: false` uses the configured client URI.
-  Raw forwarded headers are not consulted by the strategy. Tests cover explicit
-  callbacks despite spoofed forwarding headers and a trusted proxy-normalized
-  connection with a nondefault HTTPS port.
+  Tests cover explicit callbacks despite spoofed forwarding headers and a trusted
+  proxy-normalized connection with a nondefault HTTPS port. Phase 5 documentation
+  review corrected the earlier trust claim: without `callback_url`, Ueberauth's
+  helper reads Host and forwarded headers. Use an explicit trusted callback or
+  validate/strip those headers at the host application's proxy boundary.
 - The callback uses non-raising token exchange. The helper validates HTTP 200,
   JSON object shape, access-token/Bearer fields and optional expiry/refresh values
   before constructing a token. It uses public `OAuth2.Client` request APIs rather
@@ -468,16 +470,16 @@ Verification:
 
 ### README and HexDocs
 
-- [ ] Replace generated installation prose with a real setup guide: dependency, runtime credentials, Ueberauth provider registration, host app session/pipeline requirements, request/callback routes, and success/failure handling.
-- [ ] Remove the unrelated `Benchlight.Application` example. Check application auto-start behavior before telling users to manually extend `extra_applications`.
-- [ ] Show production and sandbox registration/setup separately; explain callback registration, HTTPS, environment-specific credentials, scopes, JSON configuration, and the expected returned auth fields.
-- [ ] Document every supported option and its default, including scope override policy, callback override, custom OAuth module, and credential configuration. Do not advertise settings that do nothing.
-- [ ] Explain optional names/emails, token privacy, logging precautions, account linking, and the division of responsibilities between ORCID, the strategy, Ueberauth, and the consuming app.
-- [ ] Add troubleshooting for state/cookie failures, redirect mismatches, consent denial, missing profile data, configuration errors, and upstream outages. Never request users' secrets in bug reports.
-- [ ] Update `CONTRIBUTING.md` with exact setup/check commands, supported runtime policy, isolated test rules, and sandbox testing instructions.
-- [ ] Add a changelog and security-reporting policy; include the appropriate documentation files in the Hex package and ExDoc extras. Avoid creating a large governance-document collection for a tiny library.
+- [x] Replace generated installation prose with a real setup guide: dependency, runtime credentials, Ueberauth provider registration, host app session/pipeline requirements, request/callback routes, and success/failure handling.
+- [x] Remove the unrelated `Benchlight.Application` example. Check application auto-start behavior before telling users to manually extend `extra_applications`.
+- [x] Show production and sandbox registration/setup separately; explain callback registration, HTTPS, environment-specific credentials, scopes, JSON configuration, and the expected returned auth fields.
+- [x] Document every supported option and its default, including scope override policy, callback override, custom OAuth module, and credential configuration. Do not advertise settings that do nothing.
+- [x] Explain optional names/emails, token privacy, logging precautions, account linking, and the division of responsibilities between ORCID, the strategy, Ueberauth, and the consuming app.
+- [x] Add troubleshooting for state/cookie failures, redirect mismatches, consent denial, missing profile data, configuration errors, and upstream outages. Never request users' secrets in bug reports.
+- [x] Update `CONTRIBUTING.md` with exact setup/check commands, supported runtime policy, isolated test rules, and sandbox testing instructions.
+- [x] Add a changelog and security-reporting policy; include the appropriate documentation files in the Hex package and ExDoc extras. Avoid creating a large governance-document collection for a tiny library.
 - [x] Fix ExDoc source refs to actual tags. Existing tags are `0.2.5`-style, not `v0.2.5`; the current `"#v{@version}"` string is not interpolation. Completed during Phase 4 package/link checks; CI uses its actual commit SHA.
-- [ ] Verify generated source links, README links, module docs, and the advertised changelog URL before publishing.
+- [ ] Verify generated source links, README links, module docs, and the advertised changelog URL before publishing. Local pages/anchors, source-ref generation and existing public README/badge destinations passed; final `0.3.0` tag/source/HexDocs URLs remain gated on authorized publication.
 
 ### Badges worth adding
 
@@ -487,16 +489,79 @@ Coverage is optional, only with a maintained report. Skip downloads, stars, buil
 
 ### Release checklist
 
-- [ ] Choose release numbering from the actual compatibility impact. Security/bug fixes, new opt-in features, and changed defaults need distinct release notes; pre-1.0 is not permission for silent breaks.
-- [ ] Run the full documented check set from a clean dependency/build state on the supported matrix.
-- [ ] Build the package, inspect its contents, and install it in a disposable production-mode consumer. Ensure no credentials, fixtures with private data, or development tooling are shipped as runtime dependencies.
+- [x] Choose release numbering from the actual compatibility impact. Security/bug fixes, new opt-in features, and changed defaults need distinct release notes; pre-1.0 is not permission for silent breaks.
+- [x] Run the full documented check set from a clean dependency/build state on the supported matrix.
+- [x] Build the package, inspect its contents, and install it in a disposable production-mode consumer. Ensure no credentials, fixtures with private data, or development tooling are shipped as runtime dependencies.
 - [ ] Perform sandbox login and denial flows using registered sandbox credentials. Inspect returned UID/profile/credentials without writing secrets to logs.
 - [ ] Validate in Benchpro staging: existing account login returns the same identity; fresh account behavior is intentional; missing profile/email and provider denial are handled; no duplicate account is created.
-- [ ] Record the previous dependency version/lockfile and rollback procedure before rolling out Benchpro. Any identity or data migration needs its own reversible plan.
+- [x] Record the previous dependency version/lockfile and rollback procedure before rolling out Benchpro. Any identity or data migration needs its own reversible plan. Source baseline and full-lock checksum recorded; actual deployed image/runtime/configuration must still be captured before deployment.
 - [ ] Publish matching package/docs/tag/release notes, then verify the public package installation, HexDocs links, and badges. Do not publish as a side effect of an ordinary branch push.
-- [ ] Establish a lightweight maintenance cadence: scheduled automated audit/update proposals, periodic triage, and a sandbox check before authentication-affecting releases.
+- [x] Establish a lightweight maintenance cadence: scheduled automated audit/update proposals, periodic triage, and a sandbox check before authentication-affecting releases.
 
 **Acceptance:** a new user can install and configure the package from the README without relying on knowledge from Benchpro; the released artifact works independently; Benchpro's existing account identity survives the upgrade.
+
+### Phase 5 preparation status (2026-09-19, not released)
+
+The user approved **preparation only**, explicitly stopping before live sandbox,
+Benchpro staging, commits/pushes/tags/deployment and publication. Babysitter run
+`01M2VBPT6ZRV8RRAHJEC16SWV8` records that scope. Full Phase 5 release acceptance
+is **not** complete; the unchecked live/publication gates above remain.
+
+- `mix.exs` now prepares **0.3.0**: the full custom OAuth module contract,
+  explicit callback requirements and effective OTP floor warrant a minor
+  release, not a silent 0.2.x patch. `CHANGELOG.md` separates compatibility,
+  security, fixes and tooling. No dependency or authentication behavior changed
+  in this preparation phase.
+- README now includes an executable read-only Plug router, runtime configuration,
+  separate sandbox/production setup, every supported strategy option, scope
+  override policy, custom-module migration, result/privacy contracts and
+  troubleshooting. It explicitly distinguishes the candidate from public 0.2.5.
+  The host owns accounts and sessions; the example does not invent persistence.
+- Corrected the forwarding-header trust documentation in README, module docs
+  and the earlier roadmap note. The inherited Ueberauth URL helper reads
+  forwarded/Host headers when no explicit callback is supplied. The recommended
+  configuration pins a trusted callback; no new runtime policy was introduced.
+- Added CHANGELOG and SECURITY to ExDoc extras and CHANGELOG to package files.
+  The versioned Changelog metadata URL points at the planned 0.3.0 docs, not a
+  claim that they are published. Hex/HexDocs/MIT badges have existing targets;
+  the CI badge remains absent because the remote default branch has no workflow.
+- Contributor instructions cover clean verification, secret-safe live acceptance,
+  exact Benchpro 0.2.5 source-lock checksums, full-artifact rollback, guarded
+  manual publication and maintenance cadence. Deployed Benchpro image/runtime/
+  configuration remain unknown; no sibling files or lockfile were changed.
+
+Verification:
+
+- Three new source copies began without `deps`, `_build` or PLTs. All resolved
+  the lockfile and passed warnings-as-errors compilation/tests: **71 passed**
+  on each supported pair. Canonical coverage: **98.06%**. Strict Credo, cold
+  Dialyzer (zero errors/skips), Sobelow and Hex audit passed; documented upstream
+  warnings and Sobelow's non-Phoenix router notice were not suppressed.
+- ExDoc generated **12 pages**, with no missing local link targets/anchors.
+  All **17 external README/badge URLs** returned HTTP 200 after redirects.
+  Browser inspection confirmed the rendered unreleased notice, published-0.2.5
+  badge and Changelog page. Source output honored both `SOURCE_REF=49c2da1`
+  and the proposed `0.3.0` tag spelling. The public tag lookup returned 404 as
+  expected: final public source/Changelog checks cannot pass before tag/release.
+- Built and inspected the actual `ueberauth_orcid-0.3.0.tar`: nine intended
+  source/docs files, runtime dependencies only, no tests/fixtures/credentials/
+  PLTs/orchestration/development tools. Tarball SHA-256:
+  `0c62a40781a645600f7ccca986bd75e7a0b539b7aca55b875287e7a6216deb27`.
+- Installed that tarball's extracted contents, not the working checkout, into
+  separate fresh **production-mode consumers** on the floor and canonical pairs.
+  The exact README router/runtime snippets compiled and ran. A real loopback
+  HTTP provider exercised token/userinfo exchange, consistent redirects,
+  minimal profile, denied consent, invalid/missing state, fixed-scope rejection,
+  cleanup and sandbox endpoint selection. Normal dependency startup included
+  this library without an `extra_applications` entry; Credo/ExDoc/Dialyxir/Sobelow
+  were unavailable. Consumer audits passed (Plug 1.19.5 floor, 1.20.3 canonical).
+- Repeated the packaged canonical flow with the actual read-only Benchpro
+  wrapper, including its `prompt=login` parameter. This proves source-wrapper
+  compatibility, **not staging account identity, database behavior or deployment**.
+- No registered ORCID credentials, real consent flow, hosted CI run, staging
+  acceptance, tag creation, public install or publication occurred. Those gates
+  require the documented prerequisites and a separate explicit authorization.
+
 
 ## Phase 6 — ORCID capability review, not automatic scope expansion
 
@@ -504,7 +569,7 @@ The current implementation requests `openid email profile` and fetches `/oauth/u
 
 For the existing userinfo architecture, assess `openid` as the minimal default after characterizing Benchpro compatibility, and document any change. `/authenticate` is a different valid login path: its identity comes from the token response's `orcid` field, and substituting that scope alone would leave the current userinfo request without its required `openid` permission. Discovery is not an exhaustive catalog of ordinary ORCID API scopes.
 
-Production login endpoints use `orcid.org`; sandbox uses `sandbox.orcid.org`. Merely overriding `site` is currently insufficient because `token_url` is an absolute production URL. Record APIs instead use `pub.orcid.org`/`api.orcid.org` and their sandbox counterparts. Preserve the current bare ORCID UID and supported `uid_field` customization; isolate sandbox accounts from production rather than silently changing UID format.
+Production login endpoints use `orcid.org`; sandbox uses `sandbox.orcid.org`. Since Phase 3, default authorization/token paths are relative, so overriding `site` selects the sandbox coherently unless absolute endpoint overrides remain in application configuration. Record APIs instead use `pub.orcid.org`/`api.orcid.org` and their sandbox counterparts. Preserve the current bare ORCID UID and supported `uid_field` customization; isolate sandbox accounts from production rather than silently changing UID format.
 
 | Capability | Roadmap disposition |
 | --- | --- |

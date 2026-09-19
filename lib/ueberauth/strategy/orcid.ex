@@ -10,10 +10,11 @@ defmodule Ueberauth.Strategy.Orcid do
   returning a token result tuple, and `get/4` returning an OAuth2 response tuple.
   All three authentication stages use that module.
 
-  Configure a trusted `:callback_url` or normalize the connection behind a
-  trusted reverse proxy before Ueberauth. This strategy does not read forwarded
-  headers itself. With `:send_redirect_uri` disabled, configure the OAuth
-  client's redirect URI explicitly.
+  Configure an explicit trusted `:callback_url`. Without it, Ueberauth derives
+  the URL using connection data and Host/forwarded headers; the host application
+  must validate the host and strip untrusted forwarding headers at its proxy
+  boundary. With `:send_redirect_uri` disabled, configure the OAuth client's
+  redirect URI explicitly.
 
   Credentials and `extra.raw_info.token` intentionally contain secrets.
   Never log the complete auth struct or raw provider data.

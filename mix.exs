@@ -2,7 +2,7 @@ defmodule UeberauthOrcid.MixProject do
   use Mix.Project
 
   @source_url "https://github.com/brecke/ueberauth_orcid"
-  @version "0.2.5"
+  @version "0.3.0"
 
   def project do
     [
@@ -21,6 +21,8 @@ defmodule UeberauthOrcid.MixProject do
     [
       extras: [
         "CONTRIBUTING.md": [title: "Contributing"],
+        "CHANGELOG.md": [title: "Changelog"],
+        "SECURITY.md": [title: "Security"],
         LICENSE: [title: "License"],
         "README.md": [title: "Overview"]
       ],
@@ -56,10 +58,19 @@ defmodule UeberauthOrcid.MixProject do
   defp package do
     [
       description: "An Ueberauth strategy for using Orcid to authenticate your users via OAuth2.",
-      files: ["lib", "mix.exs", "README.md", "CONTRIBUTING.md", "LICENSE", "SECURITY.md"],
+      files: [
+        "lib",
+        "mix.exs",
+        "README.md",
+        "CONTRIBUTING.md",
+        "CHANGELOG.md",
+        "LICENSE",
+        "SECURITY.md"
+      ],
       maintainers: ["Miguel Laginha"],
       licenses: ["MIT"],
       links: %{
+        Changelog: "https://hexdocs.pm/ueberauth_orcid/#{@version}/changelog.html",
         GitHub: @source_url
       }
     ]
