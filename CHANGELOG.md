@@ -1,9 +1,8 @@
 # Changelog
 
-## 0.3.0 — Unreleased
+## 0.3.0 — 2026-09-22
 
-Release candidate only: not published to Hex or deployed/accepted in Benchpro
-staging. No historical 0.2.5 change list is reconstructed here.
+No historical 0.2.5 change list is reconstructed here.
 
 ### Compatibility
 
@@ -55,14 +54,12 @@ staging. No historical 0.2.5 change list is reconstructed here.
 - Validate optional refresh/expiry fields; support non-expiring tokens and the
   legacy `expires` field when `expires_in` is absent/null.
 
-### Tooling and release preparation
+### Tooling and release
 
 - Replace the generated test with offline authentication, failure, state and
   TLS regressions; define a three-pair runtime matrix and canonical coverage.
 - Refresh development-only Credo/ExDoc; add development-only Dialyzer and
-  Sobelow gates, pinned Hex advisory auditing, weekly audit configuration and
-  monthly dependency-update configuration. Hosted activation/results remain
-  pending; the workflow is not yet on the default branch.
+  Sobelow gates, pinned Hex advisory auditing, CI, weekly audit configuration
+  and monthly dependency-update configuration.
 - Expand setup/API/security documentation, package extras, source references,
-  manual sandbox/staging acceptance and rollback/release guidance. Live
-  acceptance, the public `0.3.0` tag and publication remain separate gates.
+  secret-safe sandbox acceptance, downstream rollout and rollback guidance.

@@ -30,3 +30,7 @@ ueberauth_orcid-*.tar
 
 # Local orchestration SDK, processes, and run journals.
 /.a5c/
+
+# Local credentials.
+/.env
+/.env.*

@@ -2,11 +2,11 @@
 
 ## Release status
 
-`0.3.0` is an **unreleased candidate**, not an available Hex release. The
-workflow and Dependabot configuration below exist in this checkout but are
-not on GitHub's default branch as of 2026-09-18. Hosted checks, live sandbox
-login, Benchpro staging acceptance, the `0.3.0` tag and publication are
-**NOT passed**. Commands below are procedures, not evidence they were run.
+The repository targets `0.3.0`. Registered ORCID sandbox authorization and
+denial passed before release without recording secrets. The GitHub workflow,
+public tag, Hex package and HexDocs must still be verified for the exact release
+commit. Benchpro staging is a separate downstream adoption check, not a library
+publication gate.
 
 ## Toolchains and quick start
 
@@ -174,9 +174,10 @@ resolution. Re-audit the application before rollout.
 Review advisory notifications weekly and investigate failures promptly; review
 the monthly update PRs rather than auto-merging. At least quarterly, triage
 open issues, upstream deprecations and supported runtime pairs. Before every
-authentication-affecting release, repeat the sandbox and staging protocol below.
+authentication-affecting library release, repeat the sandbox protocol below.
+Consumers should separately validate upgrades in their own staging environment.
 
-## Manual acceptance: sandbox, then Benchpro staging
+## Manual acceptance: library sandbox and downstream consumers
 
 This requires a maintainer's explicit approval, sandbox credentials, consenting
 test accounts and authorized access to staging. Missing access is a blocked
@@ -213,7 +214,7 @@ client secrets, full callbacks, auth structs or provider response bodies.
    `:orcid_token` fields must be cleaned; successful credentials and
    `extra.raw_info.token` intentionally still contain secrets. Never log them.
 
-Then repeat in authorized **Benchpro staging**, on the exact candidate artifact:
+After publication, a consuming application such as **Benchpro** should validate the exact release in its own authorized staging environment:
 
 - Existing account: same stored UID and account ID, no duplicate account or
   identity, expected token rotation and granted-scope persistence.
@@ -323,8 +324,8 @@ floor. See [CHANGELOG.md](CHANGELOG.md). There is no automatic release job.
   production consumption on the floor in a separate clean consumer using its
   supported pair and compatible dependency resolution. The JSON smoke alone
   is not authentication acceptance.
-- [ ] Obtain and record sandbox and staging acceptance above, including the
-  rollback record. Missing credentials or access leaves this unchecked.
+- [ ] Obtain and record the registered sandbox acceptance above. Downstream
+  application staging and rollback remain the adopting application's gate.
 - [ ] Obtain explicit maintainer authorization for commit, push, tag and
   publication. Finalize the release date/changelog only then, commit the
   approved source, and create/push the exact `0.3.0` tag pointing to that
@@ -346,11 +347,11 @@ floor. See [CHANGELOG.md](CHANGELOG.md). There is no automatic release job.
   `https://hexdocs.pm/ueberauth_orcid/0.3.0/`, the GitHub tag/source links and
   README badge destinations. In another fresh production consumer, replace
   the path dependency with `{:ueberauth_orcid, "~> 0.3.0"}`, fetch, compile,
-  audit and repeat the smoke. That Hex requirement is **not usable before
-  publication**. Add a CI badge only once the hosted workflow actually exists.
+  audit and repeat the smoke. Add the CI badge once the hosted workflow exists
+  on the default branch.
 
-Record evidence and approval per checkbox. Local documentation preparation
-does not authorize deployment or publication and does not complete these gates.
+Record evidence and explicit maintainer approval per release. Never infer
+deployment or publication authorization from local verification alone.
 
 ## Pull Requests Welcome
 

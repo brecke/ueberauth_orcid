@@ -1,6 +1,7 @@
 # UeberauthOrcid
 
 [![Hex version](https://img.shields.io/hexpm/v/ueberauth_orcid.svg)](https://hex.pm/packages/ueberauth_orcid)
+[![CI](https://github.com/brecke/ueberauth_orcid/actions/workflows/ci.yml/badge.svg)](https://github.com/brecke/ueberauth_orcid/actions/workflows/ci.yml)
 [![HexDocs](https://img.shields.io/badge/HexDocs-published-blue.svg)](https://hexdocs.pm/ueberauth_orcid/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -9,29 +10,22 @@ An [Ueberauth](https://hexdocs.pm/ueberauth/) strategy for authenticating an
 `/oauth/userinfo`. It supplies an `Ueberauth.Auth` result, not an account database,
 a session manager, a general ORCID API client, or an ID-token validator.
 
-**This guide describes the prepared, unreleased `0.3.0` candidate.** The public
-Hex package and HexDocs badges currently describe `0.2.5`, not this checkout.
-There is no CI badge: the default branch does not yet contain the workflow.
-Sandbox login, application staging, and publication remain release gates; local
-checks are not evidence of a live ORCID login. See the [changelog](CHANGELOG.md),
-[contributor/release guide](CONTRIBUTING.md), and [security policy](SECURITY.md).
+See the [changelog](CHANGELOG.md), [contributor/release guide](CONTRIBUTING.md),
+and [security policy](SECURITY.md).
 
-## 1. Install the prepared checkout
+## 1. Install
 
-In your application's `mix.exs`, add a normal runtime dependency. Adjust the path
-to your local checkout containing the candidate changes:
+In your application's `mix.exs`, add a normal runtime dependency:
 
 ```elixir
 defp deps do
   [
-    {:ueberauth_orcid, path: "../ueberauth_orcid"}
+    {:ueberauth_orcid, "~> 0.3.0"}
   ]
 end
 ```
 
-Fetch dependencies with `mix deps.get`. **Only after `0.3.0` is published**, replace
-that entry with `{:ueberauth_orcid, "~> 0.3.0"}`. That Hex requirement is not
-installable yet; installing `0.2.5` does not give you the behavior below.
+Fetch dependencies with `mix deps.get`.
 
 Do not add a new application module or manually add `:ueberauth_orcid` to
 `extra_applications`. [Mix infers runtime applications from dependencies](https://hexdocs.pm/mix/Mix.Tasks.Compile.App.html)

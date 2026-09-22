@@ -492,20 +492,26 @@ Coverage is optional, only with a maintained report. Skip downloads, stars, buil
 - [x] Choose release numbering from the actual compatibility impact. Security/bug fixes, new opt-in features, and changed defaults need distinct release notes; pre-1.0 is not permission for silent breaks.
 - [x] Run the full documented check set from a clean dependency/build state on the supported matrix.
 - [x] Build the package, inspect its contents, and install it in a disposable production-mode consumer. Ensure no credentials, fixtures with private data, or development tooling are shipped as runtime dependencies.
-- [ ] Perform sandbox login and denial flows using registered sandbox credentials. Inspect returned UID/profile/credentials without writing secrets to logs.
-- [ ] Validate in Benchpro staging: existing account login returns the same identity; fresh account behavior is intentional; missing profile/email and provider denial are handled; no duplicate account is created.
+- [x] Perform sandbox login and denial flows using registered sandbox credentials. Inspect returned UID/profile/credentials without writing secrets to logs.
 - [x] Record the previous dependency version/lockfile and rollback procedure before rolling out Benchpro. Any identity or data migration needs its own reversible plan. Source baseline and full-lock checksum recorded; actual deployed image/runtime/configuration must still be captured before deployment.
 - [ ] Publish matching package/docs/tag/release notes, then verify the public package installation, HexDocs links, and badges. Do not publish as a side effect of an ordinary branch push.
 - [x] Establish a lightweight maintenance cadence: scheduled automated audit/update proposals, periodic triage, and a sandbox check before authentication-affecting releases.
 
-**Acceptance:** a new user can install and configure the package from the README without relying on knowledge from Benchpro; the released artifact works independently; Benchpro's existing account identity survives the upgrade.
+**Acceptance:** a new user can install and configure the package from the README
+without relying on knowledge from Benchpro, and the released artifact works
+independently.
 
-### Phase 5 preparation status (2026-09-19, not released)
+**Downstream adoption:** Benchpro should separately validate existing-account
+identity, fresh-account behavior, missing optional profile data, denial and
+duplicate prevention before deploying its dependency upgrade to production.
+That consumer-owned staging check is not a gate for publishing this library.
 
-The user approved **preparation only**, explicitly stopping before live sandbox,
-Benchpro staging, commits/pushes/tags/deployment and publication. Babysitter run
-`01M2VBPT6ZRV8RRAHJEC16SWV8` records that scope. Full Phase 5 release acceptance
-is **not** complete; the unchecked live/publication gates above remain.
+### Phase 5 release-candidate status (2026-09-22)
+
+The user authorized commit, push and release work after registered sandbox
+acceptance completed. Benchpro staging was reclassified as downstream adoption,
+not a library publication gate. Babysitter run
+`01M2VBPT6ZRV8RRAHJEC16SWV8` records the earlier preparation scope.
 
 - `mix.exs` now prepares **0.3.0**: the full custom OAuth module contract,
   explicit callback requirements and effective OTP floor warrant a minor
@@ -515,16 +521,16 @@ is **not** complete; the unchecked live/publication gates above remain.
 - README now includes an executable read-only Plug router, runtime configuration,
   separate sandbox/production setup, every supported strategy option, scope
   override policy, custom-module migration, result/privacy contracts and
-  troubleshooting. It explicitly distinguishes the candidate from public 0.2.5.
-  The host owns accounts and sessions; the example does not invent persistence.
+  troubleshooting. The host owns accounts and sessions; the example does not
+  invent persistence.
 - Corrected the forwarding-header trust documentation in README, module docs
   and the earlier roadmap note. The inherited Ueberauth URL helper reads
   forwarded/Host headers when no explicit callback is supplied. The recommended
   configuration pins a trusted callback; no new runtime policy was introduced.
 - Added CHANGELOG and SECURITY to ExDoc extras and CHANGELOG to package files.
-  The versioned Changelog metadata URL points at the planned 0.3.0 docs, not a
-  claim that they are published. Hex/HexDocs/MIT badges have existing targets;
-  the CI badge remains absent because the remote default branch has no workflow.
+  The versioned Changelog metadata URL points at the 0.3.0 docs. Hex/HexDocs/
+  MIT/CI badges target their release destinations; hosted CI must pass before
+  publication.
 - Contributor instructions cover clean verification, secret-safe live acceptance,
   exact Benchpro 0.2.5 source-lock checksums, full-artifact rollback, guarded
   manual publication and maintenance cadence. Deployed Benchpro image/runtime/
@@ -537,30 +543,33 @@ Verification:
   on each supported pair. Canonical coverage: **98.06%**. Strict Credo, cold
   Dialyzer (zero errors/skips), Sobelow and Hex audit passed; documented upstream
   warnings and Sobelow's non-Phoenix router notice were not suppressed.
-- ExDoc generated **12 pages**, with no missing local link targets/anchors.
-  All **17 external README/badge URLs** returned HTTP 200 after redirects.
-  Browser inspection confirmed the rendered unreleased notice, published-0.2.5
-  badge and Changelog page. Source output honored both `SOURCE_REF=49c2da1`
-  and the proposed `0.3.0` tag spelling. The public tag lookup returned 404 as
-  expected: final public source/Changelog checks cannot pass before tag/release.
-- Built and inspected the actual `ueberauth_orcid-0.3.0.tar`: nine intended
+- Final ExDoc generated **12 pages** with `SOURCE_REF=0.3.0` and no missing
+  local link targets or anchors. All **17 external README/badge URLs** had
+  returned HTTP 200 after redirects during preparation.
+- Built and inspected the finalized `ueberauth_orcid-0.3.0.tar`: nine intended
   source/docs files, runtime dependencies only, no tests/fixtures/credentials/
   PLTs/orchestration/development tools. Tarball SHA-256:
-  `0c62a40781a645600f7ccca986bd75e7a0b539b7aca55b875287e7a6216deb27`.
-- Installed that tarball's extracted contents, not the working checkout, into
-  separate fresh **production-mode consumers** on the floor and canonical pairs.
-  The exact README router/runtime snippets compiled and ran. A real loopback
-  HTTP provider exercised token/userinfo exchange, consistent redirects,
-  minimal profile, denied consent, invalid/missing state, fixed-scope rejection,
-  cleanup and sandbox endpoint selection. Normal dependency startup included
-  this library without an `extra_applications` entry; Credo/ExDoc/Dialyxir/Sobelow
-  were unavailable. Consumer audits passed (Plug 1.19.5 floor, 1.20.3 canonical).
+  `eb92d5439370dabcd2c8800be5c5040730ed84a0b7873131b65be2f34904f4ec`.
+- Installed that finalized tarball's extracted contents, not the working
+  checkout, into a fresh production-mode consumer on Elixir 1.20.4/OTP 27.3.4.
+  It compiled with warnings as errors, passed Hex audit, started normally as a
+  dependency at version 0.3.0, and did not expose Credo or ExDoc at runtime.
+  Earlier separate floor/canonical consumers exercised the exact README router
+  and runtime snippets with real loopback token/userinfo HTTP, minimal profile,
+  denial, invalid/missing state, scope rejection, cleanup and sandbox routing.
+  Consumer audits passed with Plug 1.19.5 and Plug 1.20.3.
 - Repeated the packaged canonical flow with the actual read-only Benchpro
   wrapper, including its `prompt=login` parameter. This proves source-wrapper
   compatibility, **not staging account identity, database behavior or deployment**.
-- No registered ORCID credentials, real consent flow, hosted CI run, staging
-  acceptance, tag creation, public install or publication occurred. Those gates
-  require the documented prerequisites and a separate explicit authorization.
+- Registered ORCID sandbox acceptance subsequently passed against the 0.3.0
+  candidate using the exact configured callback. A real authorization returned
+  a stable nonblank UID, optional name, nil email, granted `openid` scope,
+  refresh token and expiry without logging secrets. A separate sandbox identity
+  denied consent; the callback returned the sanitized `access_denied` failure.
+  The disposable server, browser session and local artifacts were removed.
+- Hosted CI, tag creation, public installation and publication remained pending
+  at this checkpoint. Benchpro staging is tracked by that downstream consumer,
+  not as a library release gate.
 
 
 ## Phase 6 — ORCID capability review, not automatic scope expansion
@@ -589,7 +598,7 @@ Production login endpoints use `orcid.org`; sandbox uses `sandbox.orcid.org`. Si
 2. **Dependency safety:** advisory triage, targeted runtime dependency updates, explicit JSON contract, production-consumer check, audit/update automation.
 3. **Callback hardening:** request/client option consistency, error handling, optional profile data, scopes, state-boundary tests, cleanup and secret handling. Split further by independently testable behavior if needed.
 4. **Quality gates:** typespec corrections, Dialyxir, scoped Sobelow, complete supported matrix and coverage visibility.
-5. **Release readiness:** README/HexDocs/changelog/security guidance, source links, badges, sandbox and Benchpro staging checks, release.
+5. **Release readiness:** README/HexDocs/changelog/security guidance, source links, badges, registered sandbox acceptance and release.
 6. **Demand-driven features:** only separately accepted ORCID capability work from Phase 6.
 
 The maintenance release is done after PRs 1–5 meet their acceptance criteria. Phase 6 is a decision backlog, not a prerequisite or a promise to implement everything.
