@@ -51,7 +51,7 @@ defmodule UeberauthOrcid.MixProject do
       {:credo, "~> 1.7.19", only: :dev, runtime: false},
       {:dialyxir, "~> 1.4.8", only: :dev, runtime: false},
       {:sobelow, "~> 0.15.0", only: :dev, runtime: false},
-      {:ex_doc, "~> 0.36.1", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.40.4", only: :dev, runtime: false}
     ]
   end
 
