@@ -45,7 +45,7 @@ defmodule UeberauthOrcid.MixProject do
     [
       {:oauth2, "~> 2.1 and >= 2.1.1"},
       {:jason, "~> 1.4"},
-      {:ueberauth, "~> 0.10.8"},
+      {:ueberauth, "~> 0.11.0"},
       {:plug, "~> 1.16.6 or ~> 1.17.4 or ~> 1.18.5 or ~> 1.19.5 or >= 1.20.3 and < 2.0.0"},
       {:tesla, ">= 1.18.3 and < 2.0.0"},
       {:credo, "~> 1.7.19", only: :dev, runtime: false},
